@@ -36,6 +36,11 @@ android {
 
 dependencies {
 
+    implementation ("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2")  // ViewModel
+    implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.6.2") // LiveData（可选）
+    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")   // Lifecycle（可选）
+    implementation ("androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2") // SavedState
+
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
