@@ -1,0 +1,60 @@
+package com.iteam.examproject.db;
+
+import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+
+import androidx.annotation.Nullable;
+
+public class MyDatabaseHelper extends SQLiteOpenHelper {
+    //用户表
+    public static final String TABLE_USERS = "table_users";
+    public static final String USER_ID = "userId";
+    public static final String ACCOUNT = "account";
+    public static final String PASSWORD = "password";
+
+    private static final String CREATE_TABLE_USERS = "create table " + TABLE_USERS + "(" +
+            USER_ID + " integer primary key," +
+            ACCOUNT + " text," +
+            PASSWORD + " text )";
+
+    //分组表
+    public static final String TABLE_GROUPS = "table_groups";
+    public static final String GROUP_ID = "groupId";
+    public static final String GROUP_NAME = "groupName";
+
+    private static final String CREATE_TABLE_GROUPS = "create table " + TABLE_GROUPS + "(" +
+            USER_ID + " integer, " +
+            GROUP_ID + " integer primary key," +
+            GROUP_NAME + " text)";
+
+    //内容表
+    public static final String TABLE_NOTES = "table_notes";
+    public static final String TITLE = "title";
+    public static final String CONTENT = "content";
+    public static final String EDIT_TIME = "editTime";
+
+    private static final String CREATE_TABLE_NOTES="create table "+TABLE_NOTES+"(" +
+            USER_ID+" integer," +
+            GROUP_ID+" integer," +
+            TITLE +" text," +
+            CONTENT+" text," +
+            EDIT_TIME +" integer)";
+
+
+    public MyDatabaseHelper(@Nullable Context context, @Nullable String name, @Nullable SQLiteDatabase.CursorFactory factory, int version) {
+        super(context, name, factory, version);
+    }
+
+    @Override
+    public void onCreate(SQLiteDatabase db) {
+        db.execSQL(CREATE_TABLE_USERS);
+        db.execSQL(CREATE_TABLE_GROUPS);
+        db.execSQL(CREATE_TABLE_NOTES);
+    }
+
+    @Override
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+
+    }
+}
