@@ -1,0 +1,152 @@
+package com.iteam.examproject.adapter;
+
+import android.text.InputType;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.EditText;
+import android.widget.ImageView;
+
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.iteam.examproject.R;
+import com.iteam.examproject.entity.NoteGroup;
+import com.iteam.examproject.entity.Notes;
+
+import java.util.List;
+
+public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagementAdapter.ViewHolder> {
+    private static final String TAG = "GroupManagementAdapter";
+    private List<NoteGroup> noteGroups;
+    private GarbageCanIvClickListener garbageCanIvClickListener;
+    private ConfirmIvClickListener confirmIvClickListener;
+
+    public GroupManagementAdapter() {
+    }
+
+    public GroupManagementAdapter(List<NoteGroup> noteGroups) {
+        this.noteGroups = noteGroups;
+        notifyDataSetChanged();
+    }
+
+
+    public void setGarbageCanIvClickListener(GarbageCanIvClickListener garbageCanIvClickListener) {
+        this.garbageCanIvClickListener = garbageCanIvClickListener;
+    }
+
+    public void setConfirmIvClickListener(ConfirmIvClickListener confirmIvClickListener) {
+        this.confirmIvClickListener = confirmIvClickListener;
+    }
+
+    public void updateNoteGroupList(List<NoteGroup> noteGroups) {
+        this.noteGroups.clear();
+        this.noteGroups.addAll(noteGroups);
+        notifyDataSetChanged();
+    }
+
+    public void addNoteGroup(NoteGroup noteGroup){
+        noteGroups.add(noteGroup);
+        notifyItemInserted(noteGroups.size());
+    }
+
+    public void removeNoteGroup(int position){
+        noteGroups.remove(position);
+        notifyItemRemoved(position);
+    }
+
+    @NonNull
+    @Override
+    public GroupManagementAdapter.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.rv_group_edit, parent, false);
+        return new ViewHolder(view);
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull GroupManagementAdapter.ViewHolder holder, int position) {
+        String originalGroupName = noteGroups.get(position).getGroupName();
+        Log.d(TAG, "onBindViewHolder: "+originalGroupName);
+        holder.editGroupName.setText(originalGroupName);
+        editTextEnable(false, holder.editGroupName);
+
+        //编辑按钮
+        holder.editIv.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                editTextEnable(true, holder.editGroupName);
+                holder.confirmIv.setVisibility(View.VISIBLE);
+            }
+        });
+
+        //垃圾桶
+        if (garbageCanIvClickListener != null) {
+            holder.garbageCanIv.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    garbageCanIvClickListener.onClick(holder.getAdapterPosition());
+                    //应该是可以直接写这里，当这样误操作真的就被删了
+                    //notifyItemRemoved();
+                }
+            });
+        }
+
+        //确认
+        if (confirmIvClickListener != null) {
+            holder.confirmIv.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    String editedGroupName = holder.editGroupName.getText().toString();
+                    boolean update = confirmIvClickListener.onClick(holder.getAdapterPosition(), editedGroupName);
+                    if (!update) {
+                        holder.editGroupName.setText(originalGroupName);
+                    }
+                    holder.confirmIv.setVisibility(View.GONE);
+                    editTextEnable(false,holder.editGroupName);
+                }
+            });
+
+        }
+    }
+
+    @Override
+    public int getItemCount() {
+        if(noteGroups!=null){
+            return noteGroups.size();
+        }
+        return 0;
+    }
+
+    public static class ViewHolder extends RecyclerView.ViewHolder {
+        ImageView editIv;
+        EditText editGroupName;
+        ImageView garbageCanIv;
+        ImageView confirmIv;
+
+        public ViewHolder(@NonNull View itemView) {
+            super(itemView);
+            editIv = itemView.findViewById(R.id.edit_group_iv);
+            editGroupName = itemView.findViewById(R.id.group_name_edit);
+            garbageCanIv = itemView.findViewById(R.id.garbage_can_iv);
+            confirmIv = itemView.findViewById(R.id.confirm_iv);
+        }
+    }
+
+    private void editTextEnable(boolean enable, EditText editText) {
+        editText.setFocusable(enable);
+        editText.setFocusableInTouchMode(enable);
+        editText.setLongClickable(false);
+        editText.setInputType(enable ? InputType.TYPE_CLASS_TEXT : InputType.TYPE_NULL);
+        if (enable) {
+            editText.setSelection(editText.getText().length());
+        }
+    }
+
+    public interface GarbageCanIvClickListener {
+        void onClick(int position);
+    }
+
+    public interface ConfirmIvClickListener {
+        boolean onClick(int position, String editedGroupName);
+    }
+}

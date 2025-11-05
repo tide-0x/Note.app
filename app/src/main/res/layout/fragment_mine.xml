@@ -1,14 +1,118 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".ui.fragment.MineFragment">
 
-    <!-- TODO: Update blank fragment layout -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:text="@string/hello_blank_fragment" />
+    <ImageView
+        android:id="@+id/head_portrait_iv"
+        android:layout_width="110dp"
+        android:layout_height="110dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="130dp"
+        android:scaleType="fitXY"
+        android:src="@drawable/ic_head_portrait"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
-</FrameLayout>
+    <TextView
+        android:id="@+id/user_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="15dp"
+        android:text="@string/user"
+        android:textSize="30sp"
+        app:layout_constraintStart_toEndOf="@id/cancel_account_btn"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/hello_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:text="@string/hello"
+        android:textSize="30sp"
+        app:layout_constraintStart_toEndOf="@id/head_portrait_iv"
+        app:layout_constraintTop_toTopOf="@id/head_portrait_iv" />
+
+
+    <TextView
+        android:id="@+id/user_name_tv"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="5dp"
+        android:layout_marginEnd="10dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:text="111111111111111111111"
+        android:textSize="30sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/head_portrait_iv"
+        app:layout_constraintTop_toBottomOf="@id/hello_tv" />
+
+    <TextView
+        android:id="@+id/update_account_password_btn"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="300dp"
+        android:layout_marginEnd="5dp"
+        android:background="@drawable/shape_mine_btn"
+        android:gravity="center"
+        android:text="@string/update_account_password"
+        android:textSize="20sp"
+        app:layout_constraintEnd_toStartOf="@id/exchange_account_btn"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/exchange_account_btn"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="300dp"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/shape_mine_btn"
+        android:gravity="center"
+        android:text="@string/exchange_account"
+        android:textSize="20sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/update_account_password_btn"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/cancel_account_btn"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="5dp"
+        android:background="@drawable/shape_mine_btn"
+        android:gravity="center"
+        android:text="@string/cancel_account"
+        android:textSize="20sp"
+        app:layout_constraintEnd_toStartOf="@id/exit_account_btn"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/update_account_password_btn" />
+
+    <TextView
+        android:id="@+id/exit_account_btn"
+        android:layout_width="0dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/shape_mine_btn"
+        android:gravity="center"
+        android:text="@string/exit_account"
+        android:textSize="20sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/cancel_account_btn"
+        app:layout_constraintTop_toBottomOf="@id/exchange_account_btn" />
+
+
+</androidx.constraintlayout.widget.ConstraintLayout>

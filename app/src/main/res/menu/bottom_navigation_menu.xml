@@ -2,14 +2,14 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/note"
-        android:icon="@drawable/ic_exam_project_note"
+        android:icon="@drawable/ic_note"
         android:title="@string/note" />
     <item
         android:id="@+id/group"
-        android:icon="@drawable/ic_exam_project_group"
-        android:title="@string/group" />
+        android:icon="@drawable/ic_group"
+        android:title="@string/edit_group" />
     <item
         android:id="@+id/mine"
-        android:icon="@drawable/ic_exam_project_mine"
+        android:icon="@drawable/ic_mine"
         android:title="@string/my" />
 </menu>

@@ -1,3 +1,38 @@
 <resources>
     <string name="app_name">ExamProject</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="please_input_account">请输入账号</string>
+    <string name="please_input_password">请输入密码</string>
+    <string name="register">注册</string>
+    <string name="login">登录</string>
+    <string name="note">笔记</string>
+    <string name="group">组别</string>
+    <string name="my">我的</string>
+    <string name="sort">排序</string>
+    <string name="add_note">新建笔记</string>
+    <string name="search">搜索</string>
+    <string name="hello">您好</string>
+    <string name="user">用户</string>
+    <string name="exchange_account">切换账号</string>
+    <string name="update_account_password">更改账号密码</string>
+    <string name="cancel_account">注销账号</string>
+    <string name="exit_account">退出账号</string>
+    <string name="delete">删除</string>
+    <string name="save">保存</string>
+    <string name="title">标题</string>
+    <string name="start_from_here">从这里开始...</string>
+    <string name="choose_group">选择分组</string>
+    <string name="group_management">分组管理</string>
+    <string name="create_group_from_here">在此处创建分组</string>
+    <string name="message">信息</string>
+    <string name="cancel">取消</string>
+    <string name="confirm">确认</string>
+    <string name="sort_way">排序方式</string>
+    <string name="sort_by_asc">按编辑时间升序</string>
+    <string name="sort_by_des">按编辑时间降序</string>
+    <string name="all_notes">全部笔记</string>
+    <string name="edit_group">编辑组别</string>
+    <string name="search_result">搜索结果</string>
+    <string name="nothing">无</string>
 </resources>

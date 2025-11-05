@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
+    tools:context=".ui.fragment.EditNoteFragment">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/edit_note_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        app:layout_constraintTop_toTopOf="parent"
+        app:menu="@menu/edit_note_fragment_menu"
+        app:navigationIcon="@drawable/ic_back" />
+
+    <EditText
+        android:id="@+id/note_title_edit"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:hint="@string/title"
+        android:padding="10dp"
+        android:textSize="30sp"
+        app:layout_constraintTop_toBottomOf="@id/edit_note_toolbar" />
+
+    <EditText
+        android:id="@+id/note_content_edit"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="5dp"
+        android:background="@null"
+        android:gravity="top|start"
+        android:imeOptions="flagNoExtractUi"
+        android:inputType="textMultiLine|textCapSentences"
+        android:minLines="6"
+        android:overScrollMode="always"
+        android:padding="5dp"
+        android:hint="@string/start_from_here"
+        android:scrollbars="vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/note_title_edit" />
+<!--    把第二个 EditText 设为多行可滚动、启用纵向滚动条并保证父窗口在软键盘弹出时调整大小-->
+
+
+</androidx.constraintlayout.widget.ConstraintLayout>

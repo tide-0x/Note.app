@@ -30,13 +30,15 @@ public class MyDatabaseHelper extends SQLiteOpenHelper {
 
     //内容表
     public static final String TABLE_NOTES = "table_notes";
+    public static final String NOTES_ID="notesId";
     public static final String TITLE = "title";
     public static final String CONTENT = "content";
-    public static final String EDIT_TIME = "editTime";
+    public static final String EDIT_TIME = "editedTime";
 
     private static final String CREATE_TABLE_NOTES="create table "+TABLE_NOTES+"(" +
             USER_ID+" integer," +
             GROUP_ID+" integer," +
+            NOTES_ID+" integer,"+
             TITLE +" text," +
             CONTENT+" text," +
             EDIT_TIME +" integer)";
@@ -55,6 +57,5 @@ public class MyDatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-
     }
 }

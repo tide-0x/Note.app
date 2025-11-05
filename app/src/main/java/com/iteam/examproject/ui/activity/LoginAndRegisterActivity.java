@@ -5,21 +5,21 @@ import android.os.Bundle;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.iteam.examproject.R;
-import com.iteam.examproject.databinding.ActivityMainBinding;
+import com.iteam.examproject.databinding.ActivityLoginAndRegisterBinding;
 import com.iteam.examproject.ui.fragment.LoginAndRegisterFragment;
 
-public class MainActivity extends AppCompatActivity {
-    public static ActivityMainBinding activityMainBinding;
+public class LoginAndRegisterActivity extends AppCompatActivity {
+    private ActivityLoginAndRegisterBinding binding;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        activityMainBinding = ActivityMainBinding.inflate(getLayoutInflater());
-        setContentView(activityMainBinding.getRoot());
+        binding = ActivityLoginAndRegisterBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
         getSupportFragmentManager()
                 .beginTransaction()
-                .replace(R.id.fragment_container, new LoginAndRegisterFragment())
+                .replace(R.id.login_and_register_fragment_container, new LoginAndRegisterFragment())
                 .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out, android.R.anim.fade_in, android.R.anim.fade_out)
                 .commit();
     }

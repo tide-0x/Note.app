@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="90dp"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <TextView
+        android:id="@+id/bottom_dialog_search_result_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toTopOf="parent"
+        android:text="@string/search_result"
+        android:gravity="center"
+        android:textStyle="bold"
+        android:textSize="20sp"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/bottom_dialog_notes_rv"
+        android:layout_marginTop="5dp"
+        app:layout_constraintTop_toBottomOf="@id/bottom_dialog_search_result_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="visible"
+        android:minHeight="0dp"/>
+
+
+    <TextView
+        android:id="@+id/bottom_dialog_group_cancel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="20sp"
+        android:text="@string/cancel"
+        android:layout_marginTop="5dp"
+        app:layout_constraintTop_toBottomOf="@id/bottom_dialog_notes_rv"
+        android:gravity="center"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
