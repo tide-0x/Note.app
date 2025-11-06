@@ -100,12 +100,15 @@ public class EditNoteFragment extends Fragment {
                 Notes notes1 = viewModel.getNotesLiveData().getValue();
                 if (notes1 != null) {
                     notes1.setEditTime(editedTime);
+                    notes1.setTitle(title);
+                    notes1.setContent(content);
                     if (notes1.getNotesId() == -1) {//从创建笔记的按钮来到这个fragment
-                        repo.createNote(notes1.getUserId(), notes1.getGroupId(), title, content, editedTime);
+                        repo.createNote(notes1.getUserId(), notes1.getGroupId(), notes1.getTitle(), notes1.getContent(), editedTime);
                     } else {//从某个分组中来到这个fragment
                         //有无编辑都会覆盖
                         repo.updateNotes(notes1);
                     }
+                    viewModel.setNotesLiveData(notes1);
                     startActivity(new Intent(requireContext(), ContentActivity.class));
                 }
             }
