@@ -100,6 +100,8 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
                     boolean update = confirmIvClickListener.onClick(holder.getAdapterPosition(), editedGroupName);
                     if (!update) {
                         holder.editGroupName.setText(originalGroupName);
+                    }else {
+                        holder.editGroupName.setText(editedGroupName);
                     }
                     holder.confirmIv.setVisibility(View.GONE);
                     editTextEnable(false,holder.editGroupName);

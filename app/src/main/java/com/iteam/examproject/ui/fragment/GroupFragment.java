@@ -24,6 +24,7 @@ import com.iteam.examproject.entity.User;
 import com.iteam.examproject.repo.MyRepository;
 import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
 import com.iteam.examproject.utils.RvDecorationUtil;
+import com.iteam.examproject.utils.ToastUtil;
 import com.iteam.examproject.viewmodel.MyViewModel;
 
 import java.util.List;
@@ -54,6 +55,7 @@ public class GroupFragment extends Fragment {
             public void onClick(View v) {
                 String groupName = binding.addGroupEdit.getText().toString().trim();
                 if (groupName.isEmpty()) {
+                    //.showToast(requireContext(),"组别名不能为空");
                     Toast.makeText(requireContext(), "组别名不能为空", Toast.LENGTH_SHORT).show();
                 } else {
                     User user = viewModel.getUserLiveData().getValue();
@@ -61,8 +63,10 @@ public class GroupFragment extends Fragment {
                         NoteGroup noteGroup = repo.createGroup(user.getUserId(), groupName);
                         if (noteGroup != null) {
                             adapter.addNoteGroup(noteGroup);
+                            //ToastUtil.showToast(requireContext(),"添加成功");
                             Toast.makeText(requireContext(), "添加成功", Toast.LENGTH_SHORT).show();
                         } else {
+                            //ToastUtil.showToast(requireContext(),"该组名已存在");
                             Toast.makeText(requireContext(), "该组名已存在", Toast.LENGTH_SHORT).show();
                         }
                     }
@@ -85,13 +89,21 @@ public class GroupFragment extends Fragment {
             public boolean onClick(int position, String editedGroupName) {
                 String groupName = noteGroups.get(position).getGroupName();
                 if (groupName.equals(editedGroupName)) {
+                    //ToastUtil.showToast(requireContext(),"该分组名已存在");
                     Toast.makeText(requireContext(), "该分组名已存在", Toast.LENGTH_SHORT).show();
+                    return false;
+                }
+                if(editedGroupName.isEmpty()){
+                    //ToastUtil.showToast(requireContext(),"分组名不能为空");
+                    Toast.makeText(requireContext(), "分组名不能为空", Toast.LENGTH_SHORT).show();
                     return false;
                 }
                 noteGroups.get(position).setGroupName(editedGroupName);
                 repo.updateGroupName(noteGroups.get(position));
                 noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
-
+                //ToastUtil.showToast(requireContext(),"修改成功");
+                Toast.makeText(requireContext(), "修改成功", Toast.LENGTH_SHORT).show();
+                adapter.updateNoteGroupList(noteGroups);
                 return true;
             }
         });

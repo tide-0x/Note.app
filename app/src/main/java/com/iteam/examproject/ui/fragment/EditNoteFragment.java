@@ -29,6 +29,7 @@ import com.iteam.examproject.entity.Notes;
 import com.iteam.examproject.repo.MyRepository;
 import com.iteam.examproject.ui.activity.ContentActivity;
 import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
+import com.iteam.examproject.utils.ToastUtil;
 import com.iteam.examproject.viewmodel.MyViewModel;
 
 import java.util.List;
@@ -83,6 +84,7 @@ public class EditNoteFragment extends Fragment {
                 title = binding.noteTitleEdit.getText().toString();
                 content = binding.noteContentEdit.getText().toString();
                 if (title.isEmpty() && !content.isEmpty()) {//有内容但标题为空
+                    //ToastUtil.showToast(requireContext(),"标题不能为空");
                     Toast.makeText(requireContext(), "标题不能为空", Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -134,6 +136,7 @@ public class EditNoteFragment extends Fragment {
                         return true;
                     } else if (!content.isEmpty() && title.isEmpty()) {
                         //有内容但没标题
+                        //ToastUtil.showToast(requireContext(),"标题不能为空");
                         Toast.makeText(requireContext(), "标题不能为空", Toast.LENGTH_SHORT).show();
                         return true;
                     }
@@ -150,6 +153,7 @@ public class EditNoteFragment extends Fragment {
                             repo.updateNotes(notes);
                             viewModel.setNotesLiveData(notes);
                         }
+                        //ToastUtil.showToast(requireContext(),"保存成功");
                         Toast.makeText(requireContext(), "保存成功", Toast.LENGTH_SHORT).show();
                     }
                 }

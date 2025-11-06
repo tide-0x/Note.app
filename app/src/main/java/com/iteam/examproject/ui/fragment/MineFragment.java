@@ -22,6 +22,7 @@ import com.iteam.examproject.databinding.FragmentMineBinding;
 import com.iteam.examproject.entity.User;
 import com.iteam.examproject.repo.MyRepository;
 import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
+import com.iteam.examproject.utils.ToastUtil;
 import com.iteam.examproject.viewmodel.MyViewModel;
 
 import java.util.Objects;
@@ -76,6 +77,7 @@ public class MineFragment extends Fragment {
                                 User user = viewModel.getUserLiveData().getValue();
                                 user.setPassword(changedPassword);
                                 viewModel.setUserLiveData(user);
+                                //ToastUtil.showToast(requireContext(),"密码修改成功");
                                 Toast.makeText(requireContext(), "密码修改成功", Toast.LENGTH_SHORT).show();
                                 dialog.dismiss();
                             }

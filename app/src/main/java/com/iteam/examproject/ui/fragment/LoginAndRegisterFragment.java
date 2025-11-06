@@ -21,6 +21,7 @@ import com.iteam.examproject.databinding.FragmentLoginAndRegisterBinding;
 import com.iteam.examproject.entity.NoteGroup;
 import com.iteam.examproject.entity.User;
 import com.iteam.examproject.ui.activity.ContentActivity;
+import com.iteam.examproject.utils.ToastUtil;
 import com.iteam.examproject.viewmodel.MyViewModel;
 import com.iteam.examproject.repo.MyRepository;
 import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
@@ -68,19 +69,23 @@ public class LoginAndRegisterFragment extends Fragment {
                 account = binding.accountEdit.getText().toString().trim();
                 password = binding.passwordEdit.getText().toString().trim();
                 if (account.isEmpty() || password.isEmpty()) {
+                    //ToastUtil.showToast(requireContext(),"账号或密码不能为空");
                     Toast.makeText(getContext(), "账号或密码不能为空", Toast.LENGTH_SHORT).show();
                     return;
                 }
                 User user = repo.login(account, password);
                 if (user == null) {//登录失败
+                    //ToastUtil.showToast(requireContext(),"账号或密码错误");
                     Toast.makeText(requireActivity(), "账号或密码错误", Toast.LENGTH_SHORT).show();
                 } else {
                     User liveDataUser = viewModel.getUserLiveData().getValue();
                     if (liveDataUser != null &&
                             changedUser &&
                             liveDataUser.getUserId() == user.getUserId()) {//判断是否切换账号 true
+                        //ToastUtil.showToast(requireContext(),"该账号为当前登录账号");
                         Toast.makeText(requireContext(), "该账号为当前登录账号", Toast.LENGTH_SHORT).show();
                     } else {
+                        //ToastUtil.showToast(requireContext(),"登录成功");
                         Toast.makeText(requireActivity(), "登录成功", Toast.LENGTH_SHORT).show();
                         saveData(user);
                         toNoteFragment();
@@ -98,13 +103,16 @@ public class LoginAndRegisterFragment extends Fragment {
                 account = binding.accountEdit.getText().toString().trim();
                 password = binding.passwordEdit.getText().toString().trim();
                 if (account.isEmpty() || password.isEmpty()) {
+                    //ToastUtil.showToast(requireContext(),"账号或密码不能为空");
                     Toast.makeText(requireActivity(), "账号或密码不能为空", Toast.LENGTH_SHORT).show();
                     return;
                 }
                 User user = repo.register(account, password);
                 if (user == null) {
+                    //ToastUtil.showToast(requireContext(),"该账号已存在");
                     Toast.makeText(requireContext(), "该账号已存在", Toast.LENGTH_SHORT).show();
                 } else {
+                    //ToastUtil.showToast(requireContext(),"注册成功");
                     Toast.makeText(requireContext(), "注册成功", Toast.LENGTH_SHORT).show();
                     saveData(user);
                     toNoteFragment();

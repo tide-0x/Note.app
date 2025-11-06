@@ -38,6 +38,7 @@ import com.iteam.examproject.repo.MyRepository;
 import com.iteam.examproject.ui.activity.EditNoteActivity;
 import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
 import com.iteam.examproject.utils.RvDecorationUtil;
+import com.iteam.examproject.utils.ToastUtil;
 import com.iteam.examproject.viewmodel.MyViewModel;
 
 import java.util.List;
@@ -192,6 +193,7 @@ public class NoteFragment extends Fragment {
                     public void onClick(DialogInterface dialog, int which) {
                         String keyWord = editText.getText().toString();
                         if (keyWord.isEmpty()) {
+                            //ToastUtil.showToast(requireContext(),"请输入笔记标题");
                             Toast.makeText(requireContext(), "请输入笔记标题", Toast.LENGTH_SHORT).show();
 
                         } else {
@@ -299,8 +301,10 @@ public class NoteFragment extends Fragment {
                 notes1.setGroupId(noteGroup1.getGroupId());
                 boolean result = repo.addNotesToGroup(notes1);
                 if (result) {//true
+                    //ToastUtil.showToast(requireContext(),"添加成功");
                     Toast.makeText(requireContext(), "添加成功", Toast.LENGTH_SHORT).show();
                 } else {
+                    //ToastUtil.showToast(requireContext(),"该分组已有该笔记");
                     Toast.makeText(requireContext(), "该分组已有该笔记", Toast.LENGTH_SHORT).show();
                 }
                 bottomSheetDialog.dismiss();
