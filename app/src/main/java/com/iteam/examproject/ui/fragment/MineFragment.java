@@ -58,7 +58,6 @@ public class MineFragment extends Fragment {
             public void onClick(View v) {
                 AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
                 EditText editText = new EditText(requireContext());
-                editText.setHint("请输入新密码");
                 builder.setView(editText);
                 builder
                         .setTitle("请输入新的密码")
@@ -72,6 +71,10 @@ public class MineFragment extends Fragment {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 String changedPassword = editText.getText().toString();
+                                if(changedPassword.isEmpty()){
+                                    Toast.makeText(requireContext(), "密码不能为空", Toast.LENGTH_SHORT).show();
+                                    return;
+                                }
                                 repo.updatePassword(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId(),
                                         changedPassword);
                                 User user = viewModel.getUserLiveData().getValue();
