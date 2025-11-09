@@ -29,12 +29,6 @@ public class EditNoteActivity extends AppCompatActivity {
                     .beginTransaction()
                     .add(R.id.edit_note_fragment_container_view, new EditNoteFragment(), EDITED_FRAGMENT)
                     .commit();
-        } else {
-            fm
-                    .beginTransaction()
-                    .show(fragment)
-                    .commit();
-
         }
 
     }
@@ -44,4 +38,5 @@ public class EditNoteActivity extends AppCompatActivity {
         super.onNewIntent(intent);
         setIntent(intent);
     }
+    //Activity 使用 launchMode（如 singleTop/singleTask）或通过带相应 flag 的启动方式（通知、深链接等）复用已存在实例时，需要在这里处理或保存新的启动参数。
 }

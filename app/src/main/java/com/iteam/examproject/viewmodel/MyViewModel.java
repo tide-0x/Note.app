@@ -15,11 +15,6 @@ import java.util.Objects;
 
 public class MyViewModel extends ViewModel {
     private final SharedDataRepository repository=SharedDataRepository.getInstance();
-    /*private static final MutableLiveData<User> userLiveData = new MutableLiveData<>(new User(-1, "", ""));
-    private static final MutableLiveData<NoteGroup> noteGroupLiveData = new MutableLiveData<>(new NoteGroup(Objects.requireNonNull(userLiveData.getValue()).getUserId(), 0, "全部笔记"));
-    private static final MutableLiveData<List<Notes>> notesListLiveData=new MutableLiveData<>(new ArrayList<>());
-    private static final MutableLiveData<Notes> notesLiveData=new MutableLiveData<>(new Notes(-1,-1,-1,"","",-1));*/
-    //private static final MutableLiveData<List<NoteGroup>> noteGroupListLiveData=new MutableLiveData<>(new ArrayList<>());
 
     public void setUserLiveData(User user) {
         repository.setUser(user);

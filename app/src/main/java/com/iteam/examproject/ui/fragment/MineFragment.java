@@ -139,6 +139,10 @@ public class MineFragment extends Fragment {
                 edit.apply();
                 Intent intent = new Intent(requireContext(), LoginAndRegisterActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+                //FLAG_ACTIVITY_NEW_TASK：在新的任务（task）中启动目标 Activity（或复用已有任务）。
+                //FLAG_ACTIVITY_CLEAR_TASK：如果要启动的任务已存在，先清空该任务中的所有 Activity。
+                //两者合用的效果：清空当前任务的返回栈，并把要启动的 Activity 作为新的根 Activity 启动。常用于注销/切换账号场景，防止用户按返回键回到之前的界面。
+                //注意：FLAG_ACTIVITY_CLEAR_TASK 通常需要和 FLAG_ACTIVITY_NEW_TASK 一起使用，否则会被忽略
                 startActivity(intent);
                 requireActivity().finish();
             }

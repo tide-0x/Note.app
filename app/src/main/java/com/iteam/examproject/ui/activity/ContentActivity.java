@@ -116,4 +116,9 @@ public class ContentActivity extends AppCompatActivity {
         outState.putString(KEY_CURRENT_TAG, currentTag);
         super.onSaveInstanceState(outState);
     }
+//    Activity 的 onSaveInstanceState 会在系统需要保存临时状态以防 Activity 被销毁时被调用，常见场景：
+//    配置变更（如屏幕旋转）前由系统调用以保存 UI 状态；
+//    当用户把应用切到后台且系统可能在内存紧张时回收进程前；
+//    从后台恢复时，保存的 Bundle 会在 onCreate 或 onRestoreInstanceState 中恢复。
+//    注意：当用户主动退出（按返回键或调用 finish()）通常不会调用 onSaveInstanceState
 }
