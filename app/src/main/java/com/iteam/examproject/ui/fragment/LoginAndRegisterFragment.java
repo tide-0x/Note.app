@@ -146,5 +146,6 @@ public class LoginAndRegisterFragment extends Fragment {
     private void toNoteFragment() {
         Intent intent = new Intent(requireActivity(), ContentActivity.class);
         startActivity(intent);
+        requireActivity().finish();
     }
 }

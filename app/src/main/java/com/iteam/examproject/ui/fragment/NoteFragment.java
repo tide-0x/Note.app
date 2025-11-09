@@ -35,6 +35,7 @@ import com.iteam.examproject.databinding.SortBottomDialogBinding;
 import com.iteam.examproject.entity.NoteGroup;
 import com.iteam.examproject.entity.Notes;
 import com.iteam.examproject.repo.MyRepository;
+import com.iteam.examproject.repo.SharedDataRepository;
 import com.iteam.examproject.ui.activity.EditNoteActivity;
 import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
 import com.iteam.examproject.utils.RvDecorationUtil;
@@ -51,6 +52,7 @@ public class NoteFragment extends Fragment {
     private MyRepository repo;
     private NoteAdapter noteAdapter;
     private LinearLayoutManager layoutManager;
+    private SharedDataRepository sharedRepo;
     private com.iteam.examproject.databinding.BottomDialogGroupBinding bottomDialogGroupBinding;
 
     public NoteFragment() {
@@ -63,34 +65,36 @@ public class NoteFragment extends Fragment {
         init();
 
         //观察当前分组
-        viewModel.getNoteGroupLiveData().observe(getViewLifecycleOwner(), new Observer<NoteGroup>() {
+        sharedRepo.getNoteGroupLiveData().observe(getViewLifecycleOwner(), new Observer<NoteGroup>() {
             @Override
             public void onChanged(NoteGroup noteGroup) {
                 binding.noteFragmentToolbar.setTitle(noteGroup.getGroupName());
-                //给创建笔记的按钮floatActionBtn的fragment传递数据
-                viewModel.setNotesLiveData(new Notes(noteGroup.getUserId(), noteGroup.getGroupId(), -1, "", "", -1));
+                //给创建笔记的按钮floatActionBtn的fragment传递数据//
+                //给创建笔记的按钮传递空的临时 Notes（避免残留）
+                sharedRepo.setNotes(new Notes(noteGroup.getUserId(), noteGroup.getGroupId(), -1, "", "", -1));
             }
         });
 
         //一开始进入时展示全部笔记
-        NoteGroup noteGroup = viewModel.getNoteGroupLiveData().getValue();
+        NoteGroup noteGroup = sharedRepo.getNoteGroupLiveData().getValue();
         List<Notes> notes = null;
         if (noteGroup != null) {
             notes = repo.getNotesList(noteGroup.getUserId(), noteGroup.getGroupId());
         }
-        viewModel.setNotesListLiveData(notes);
+        sharedRepo.setNotesList(notes);
+
 
         //观察笔记集合
-        viewModel.getNotesListLiveData().observe(getViewLifecycleOwner(), new Observer<List<Notes>>() {
+        sharedRepo.getNotesListLiveData().observe(getViewLifecycleOwner(), new Observer<List<Notes>>() {
             @Override
-            public void onChanged(List<Notes> notes) {
-                noteAdapter.updateNotes(notes);
+            public void onChanged(List<Notes> notesList) {
+                noteAdapter.updateNotes(notesList);
 
                 //点击笔记
                 noteAdapter.setNoteClickListener(new NoteAdapter.NoteClickListener() {
                     @Override
                     public void onClick(int position) {
-                        viewModel.setNotesLiveData(notes.get(position));
+                        sharedRepo.setNotes(notesList.get(position));
                         startActivity(new Intent(requireContext(), EditNoteActivity.class));
                     }
                 });
@@ -99,17 +103,21 @@ public class NoteFragment extends Fragment {
                 noteAdapter.setNoteLongClickListener(new NoteAdapter.NoteLongClickListener() {
                     @Override
                     public void onLongClick(int position) {
-                        notesLongClickListener(position, notes);
+                        notesLongClickListener(position, notesList);
                     }
                 });
             }
         });
 
 
-        //跳转至EditNoteActivity
+        //跳转至EditNoteActivity，先清空临时Notes再跳转
         binding.createNoteFloatActionBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                NoteGroup currentGroup = sharedRepo.getNoteGroupLiveData().getValue();
+                long userId = currentGroup != null ? currentGroup.getUserId() : -1;
+                long groupId = currentGroup != null ? currentGroup.getGroupId() : 0;
+                sharedRepo.setNotes(new Notes(userId, groupId, -1, "", "", -1));
                 startActivity(new Intent(requireActivity(), EditNoteActivity.class));
             }
         });
@@ -314,6 +322,7 @@ public class NoteFragment extends Fragment {
 
     private void init() {
         binding = FragmentNoteBinding.inflate(getLayoutInflater());
+        sharedRepo = SharedDataRepository.getInstance();//使用单例仓库
         viewModel = new ViewModelProvider(this).get(MyViewModel.class);
         noteAdapter = new NoteAdapter();
         binding.noteFragmentNotesRv.setAdapter(noteAdapter);

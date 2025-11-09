@@ -22,7 +22,6 @@ import com.iteam.examproject.databinding.FragmentMineBinding;
 import com.iteam.examproject.entity.User;
 import com.iteam.examproject.repo.MyRepository;
 import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
-import com.iteam.examproject.utils.ToastUtil;
 import com.iteam.examproject.viewmodel.MyViewModel;
 
 import java.util.Objects;
@@ -95,7 +94,10 @@ public class MineFragment extends Fragment {
             public void onClick(View v) {
                 edit.putBoolean("changedUser", true);
                 edit.apply();
-                startActivity(new Intent(requireContext(), LoginAndRegisterActivity.class));
+                Intent intent=new Intent(new Intent(requireContext(), LoginAndRegisterActivity.class));
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                requireActivity().finish();
             }
         });
 
@@ -116,10 +118,12 @@ public class MineFragment extends Fragment {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 repo.cancelUser(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
-                                updateViewModel();
+                                updateSPF();
                                 edit.apply();
                                 Intent intent = new Intent(requireContext(), LoginAndRegisterActivity.class);
+                                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
                                 startActivity(intent);
+                                requireActivity().finish();
                                 dialog.dismiss();
                             }
                         })
@@ -131,10 +135,12 @@ public class MineFragment extends Fragment {
         binding.exitAccountBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                updateViewModel();
+                updateSPF();
                 edit.apply();
                 Intent intent = new Intent(requireContext(), LoginAndRegisterActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
+                requireActivity().finish();
             }
         });
 
@@ -142,7 +148,7 @@ public class MineFragment extends Fragment {
         return binding.getRoot();
     }
 
-    private void updateViewModel() {
+    private void updateSPF() {
         edit.putLong("userId", -1);
         edit.putString("account", "");
         edit.putString("password", "");

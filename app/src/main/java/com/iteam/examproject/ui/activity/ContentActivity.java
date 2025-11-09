@@ -1,16 +1,14 @@
 package com.iteam.examproject.ui.activity;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.MenuItem;
-import android.view.View;
 
-import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
 
 import com.google.android.material.navigation.NavigationBarView;
 import com.iteam.examproject.R;
@@ -20,18 +18,43 @@ import com.iteam.examproject.ui.fragment.MineFragment;
 import com.iteam.examproject.ui.fragment.NoteFragment;
 
 public class ContentActivity extends AppCompatActivity {
+    public static final String NOTE_FRAGMENT = "noteFragment";
+    public static final String GROUP_FRAGMENT = "groupFragment";
+    public static final String MINE_FRAGMENT = "mineFragment";
     private ActivityContentBinding binding;
+    private String currentTag = NOTE_FRAGMENT;
+    private static final String KEY_CURRENT_TAG = "key_current_tag";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = ActivityContentBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        getSupportFragmentManager()
-                .beginTransaction()
-                .replace(binding.contentFragmentContainerView.getId(), new NoteFragment())
-                .commit();
+
+        if (savedInstanceState != null) {
+            currentTag = savedInstanceState.getString(KEY_CURRENT_TAG, NOTE_FRAGMENT);
+        }
+
+        FragmentManager fm = getSupportFragmentManager();
+        Fragment fragment = fm.findFragmentByTag(NOTE_FRAGMENT);
+        if (fragment == null) {
+            fm
+                    .beginTransaction()
+                    .add(binding.contentFragmentContainerView.getId(), new NoteFragment(), NOTE_FRAGMENT)
+                    .commit();
+        }
         bottomNav();
+
+        // 如果是重建，确保底部导航与 currentTag 同步（触发 listener 时会检测 currentTag）
+        if (savedInstanceState != null) {
+            binding.bottomNavigation.setSelectedItemId(tagToMenuId(currentTag));
+        }
+    }
+
+    private int tagToMenuId(String tag) {
+        if (NOTE_FRAGMENT.equals(tag)) return R.id.note;
+        if (GROUP_FRAGMENT.equals(tag)) return R.id.group;
+        return R.id.mine;
     }
 
     private void bottomNav() {
@@ -40,23 +63,57 @@ public class ContentActivity extends AppCompatActivity {
             @Override
             public boolean onNavigationItemSelected(@NonNull MenuItem item) {
                 int viewId = item.getItemId();
-                Fragment fragment = null;
+                String targetTag = NOTE_FRAGMENT;
+                FragmentManager fm = getSupportFragmentManager();
                 if (viewId == R.id.note) {
-                    fragment = new NoteFragment();
+                    targetTag = NOTE_FRAGMENT;
                 } else if (viewId == R.id.group) {
-                    fragment = new GroupFragment();
+                    targetTag = GROUP_FRAGMENT;
                 } else if (viewId == R.id.mine) {
-                    fragment = new MineFragment();
+                    targetTag = MINE_FRAGMENT;
                 }
-                if (fragment != null) {
-                    getSupportFragmentManager()
-                            .beginTransaction()
-                            .replace(R.id.content_fragment_container_view, fragment)
-                            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out, android.R.anim.fade_in, android.R.anim.fade_out)
-                            .commit();
+                if (currentTag.equals(targetTag)) {
+                    return true;//已是当前，不做任何操作
                 }
+
+                FragmentTransaction ft = fm.beginTransaction();
+                Fragment current = fm.findFragmentByTag(currentTag);
+                if (current != null && current.isAdded()) {
+                    ft.hide(current);
+                }
+
+                Fragment target = fm.findFragmentByTag(targetTag);
+                if (target == null) {
+                    //只在不存在时创建并add(避免replace导致重复)
+                    if (targetTag.equals(NOTE_FRAGMENT)) {
+                        target = new NoteFragment();
+                    } else if (targetTag.equals(GROUP_FRAGMENT)) {
+                        target = new GroupFragment();
+                    } else {
+                        target = new MineFragment();
+                    }
+                    ft.add(binding.contentFragmentContainerView.getId(), target, targetTag);
+                } else {
+                    ft.show(target);
+                }
+
+                ft.setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out, android.R.anim.fade_in, android.R.anim.fade_out);
+                ft.commit();
+                currentTag = targetTag;
                 return true;
             }
         });
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        outState.putString(KEY_CURRENT_TAG, currentTag);
+        super.onSaveInstanceState(outState);
     }
 }

@@ -27,6 +27,7 @@ import com.iteam.examproject.databinding.FragmentEditNoteBinding;
 import com.iteam.examproject.entity.NoteGroup;
 import com.iteam.examproject.entity.Notes;
 import com.iteam.examproject.repo.MyRepository;
+import com.iteam.examproject.repo.SharedDataRepository;
 import com.iteam.examproject.ui.activity.ContentActivity;
 import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
 import com.iteam.examproject.utils.ToastUtil;
@@ -41,6 +42,7 @@ public class EditNoteFragment extends Fragment {
     private MyRepository repo;
     private String title;
     private String content;
+    private SharedDataRepository sharedRepo;
 
     public EditNoteFragment() {
     }
@@ -54,18 +56,32 @@ public class EditNoteFragment extends Fragment {
         //把第二个 EditText 设为多行可滚动、启用纵向滚动条并保证父窗口在软键盘弹出时调整大小
         EditText contentEdit = binding.noteContentEdit;
         contentEdit.setVerticalScrollBarEnabled(true);
+
         contentEdit.setMovementMethod(ScrollingMovementMethod.getInstance());
+        //让 EditText 支持内部文本滚动
+        //当文本内容超过控件高度时，用户可以上下滚动查看
+
         contentEdit.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 v.getParent().requestDisallowInterceptTouchEvent(true);
-                return false;
+                //当 EditText 嵌套在另一个可滚动容器中时（如 ScrollView、RecyclerView），会发生滚动冲突：
+                //用户想在 EditText 内部滚动文本时，可能意外触发外部容器的滚动
+                //或者反过来，导致滚动体验不流畅
+                //解决方案：
+                //告诉父容器："不要拦截触摸事件，让EditText自己处理"
+                //当用户触摸 EditText 时，确保所有的滚动操作都由 EditText 自己处理
+                //防止父容器"抢走"触摸事件
+                return false;//返回值 false 表示触摸事件会继续传递给 EditText 的默认处理
             }
         });
 
         viewModel.getNotesLiveData().observe(getViewLifecycleOwner(), new Observer<Notes>() {
             @Override
             public void onChanged(Notes notes) {
+                if(notes==null){
+                    return;
+                }
                 if (!notes.getTitle().isEmpty()) {
                     binding.noteTitleEdit.setText(notes.getTitle());
                 }
@@ -89,27 +105,32 @@ public class EditNoteFragment extends Fragment {
                     return;
                 }
                 if (content.isEmpty() && title.isEmpty()) {
-                    //没有编辑，直接返回
-                    startActivity(new Intent(requireActivity(), ContentActivity.class));
+                    //没有编辑，清空临时notes并finish
+                    sharedRepo.setNotes(new Notes(-1,-1,-1,"","",-1));
+                    requireActivity().finish();
                     return;
                 }
                 //其余情况
                 long editedTime = System.currentTimeMillis();
                 //在全部笔记中还是在其他分组中
                 //NoteFragment中viewmodel数据进行了更新
-                Notes notes1 = viewModel.getNotesLiveData().getValue();
+                Notes notes1 =sharedRepo.getNotesLiveData().getValue();
                 if (notes1 != null) {
                     notes1.setEditTime(editedTime);
                     notes1.setTitle(title);
                     notes1.setContent(content);
                     if (notes1.getNotesId() == -1) {//从创建笔记的按钮来到这个fragment
-                        repo.createNote(notes1.getUserId(), notes1.getGroupId(), notes1.getTitle(), notes1.getContent(), editedTime);
+                        long notesId=repo.createNote(notes1.getUserId(), notes1.getGroupId(), notes1.getTitle(), notes1.getContent(), editedTime);
+                        notes1.setNotesId(notesId);
                     } else {//从某个分组中来到这个fragment
                         //有无编辑都会覆盖
                         repo.updateNotes(notes1);
                     }
-                    viewModel.setNotesLiveData(notes1);
-                    startActivity(new Intent(requireContext(), ContentActivity.class));
+                    List<Notes> refreshed=repo.getNotesList(notes1.getUserId(), notes1.getGroupId());
+                    sharedRepo.setNotesList(refreshed);
+                    //清空临时notes防止下次新建保留
+                    sharedRepo.setNotes(new Notes(-1,-1,-1,"","",-1));
+                    requireActivity().finish();
                 }
             }
         });
@@ -123,18 +144,20 @@ public class EditNoteFragment extends Fragment {
                     title = binding.noteTitleEdit.getText().toString();
                     content = binding.noteContentEdit.getText().toString();
                     //点开了但标题和内容为空
+                    //todo:全删干净了再按删除键
                     if (title.isEmpty() && content.isEmpty()) {
-                        startActivity(new Intent(requireContext(), ContentActivity.class));
+                        requireActivity().finish();
                     } else {//标题和内容至少有一个不为空
                         deleteNotesAlertDialog();
                     }
 
                 } else if (itemId == R.id.save) {
-                    //保存笔记
+                    //保存笔记：创建或更新后刷新列表，清空临时notes，finish
                     title = binding.noteTitleEdit.getText().toString();
                     content = binding.noteContentEdit.getText().toString();
                     if (title.isEmpty() && content.isEmpty()) {
-                        startActivity(new Intent(requireContext(), ContentActivity.class));
+                        sharedRepo.setNotes(new Notes(-1,-1,-1,"","",-1));
+                        requireActivity().finish();
                         //todo:是否需要手动消费事件
                         return true;
                     } else if (!content.isEmpty() && title.isEmpty()) {
@@ -143,7 +166,7 @@ public class EditNoteFragment extends Fragment {
                         Toast.makeText(requireContext(), "标题不能为空", Toast.LENGTH_SHORT).show();
                         return true;
                     }
-                    Notes notes = viewModel.getNotesLiveData().getValue();
+                    Notes notes = sharedRepo.getNotesLiveData().getValue();
                     long editedTime = System.currentTimeMillis();
                     if (notes != null) {
                         notes.setEditTime(editedTime);
@@ -154,10 +177,14 @@ public class EditNoteFragment extends Fragment {
                             notes.setNotesId(notesId);
                         } else {//从某个分组中来到这个fragment
                             repo.updateNotes(notes);
-                            viewModel.setNotesLiveData(notes);
                         }
                         //ToastUtil.showToast(requireContext(),"保存成功");
+                        //刷新当前分组的笔记列表并通知仓库观察者
+                        List<Notes> refreshed=repo.getNotesList(notes.getUserId(), notes.getGroupId());
+                        sharedRepo.setNotesList(refreshed);
+                        //清空临时notes防止下次新建保存旧内容
                         Toast.makeText(requireContext(), "保存成功", Toast.LENGTH_SHORT).show();
+                        //requireActivity().finish();
                     }
                 }
                 return true;
@@ -187,11 +214,12 @@ public class EditNoteFragment extends Fragment {
                 //删除在数据库中的记录
                 //创建处删除
                 //某个分组中的笔记删除
-                Notes notes = viewModel.getNotesLiveData().getValue();
+                Notes notes = sharedRepo.getNotesLiveData().getValue();
                 if (notes != null) {
                     List<Notes> notesList = repo.deleteNotes(notes.getUserId(), notes.getGroupId(), notes.getNotesId());
-                    viewModel.setNotesListLiveData(notesList);
-                    startActivity(new Intent(requireContext(), ContentActivity.class));
+                    sharedRepo.setNotesList(notesList);
+                    sharedRepo.setNotes(new Notes(-1,-1,-1,"","",-1));
+                    requireActivity().finish();
                 }
 
                 alertDialog.dismiss();
@@ -202,6 +230,7 @@ public class EditNoteFragment extends Fragment {
 
     private void init() {
         binding = FragmentEditNoteBinding.inflate(getLayoutInflater());
+        sharedRepo=SharedDataRepository.getInstance();
         viewModel = new ViewModelProvider(this).get(MyViewModel.class);
         repo = new MyRepository(requireContext());
         repo.open();

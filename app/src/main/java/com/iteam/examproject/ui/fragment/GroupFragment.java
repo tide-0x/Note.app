@@ -120,7 +120,7 @@ public class GroupFragment extends Fragment {
         noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
         adapter = new GroupManagementAdapter(noteGroups);
         binding.groupFragmentRv.setAdapter(adapter);
-        binding.groupFragmentRv.addItemDecoration(new RvDecorationUtil(5F));
+        binding.groupFragmentRv.addItemDecoration(new RvDecorationUtil(8F));
         linearLayoutManager = new LinearLayoutManager(requireContext());
         binding.groupFragmentRv.setLayoutManager(linearLayoutManager);
         // 使软键盘不调整窗口（键盘会覆盖底部导航）[实际发现，写这里没用，注册文件有用]
