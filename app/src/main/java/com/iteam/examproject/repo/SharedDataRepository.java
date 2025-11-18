@@ -32,7 +32,7 @@ public class SharedDataRepository {
         return userLiveData;
     }
     public void setUser(User user) {
-        userLiveData.postValue(user);
+        userLiveData.setValue(user);
     }
 
     // NoteGroup
@@ -40,7 +40,7 @@ public class SharedDataRepository {
         return noteGroupLiveData;
     }
     public void setNoteGroup(NoteGroup noteGroup) {
-        noteGroupLiveData.postValue(noteGroup);
+        noteGroupLiveData.setValue(noteGroup);
     }
 
     // Notes list
@@ -48,7 +48,7 @@ public class SharedDataRepository {
         return notesListLiveData;
     }
     public void setNotesList(List<Notes> notes) {
-        notesListLiveData.postValue(notes);
+        notesListLiveData.setValue(notes);
     }
 
     // Single Notes
@@ -56,7 +56,7 @@ public class SharedDataRepository {
         return notesLiveData;
     }
     public void setNotes(Notes notes) {
-        notesLiveData.postValue(notes);
+        notesLiveData.setValue(notes);
     }
 }
 
