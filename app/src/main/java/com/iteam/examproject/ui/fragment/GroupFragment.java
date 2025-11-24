@@ -1,30 +1,23 @@
 package com.iteam.examproject.ui.fragment;
 
 import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import android.view.LayoutInflater;
-import android.view.MenuItem;
-import android.view.View;
-import android.view.ViewGroup;
-import android.view.WindowManager;
-import android.widget.Toast;
-
-import com.google.android.material.navigation.NavigationBarView;
-import com.iteam.examproject.R;
 import com.iteam.examproject.adapter.GroupManagementAdapter;
 import com.iteam.examproject.databinding.FragmentGroupBinding;
 import com.iteam.examproject.entity.NoteGroup;
+import com.iteam.examproject.entity.Notes;
 import com.iteam.examproject.entity.User;
 import com.iteam.examproject.repo.MyRepository;
-import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
 import com.iteam.examproject.utils.RvDecorationUtil;
-import com.iteam.examproject.utils.ToastUtil;
 import com.iteam.examproject.viewmodel.MyViewModel;
 
 import java.util.List;
@@ -71,6 +64,7 @@ public class GroupFragment extends Fragment {
                         }
                     }
                 }
+                binding.addGroupEdit.setText("");
             }
         });
 
@@ -78,7 +72,17 @@ public class GroupFragment extends Fragment {
         adapter.setGarbageCanIvClickListener(new GroupManagementAdapter.GarbageCanIvClickListener() {
             @Override
             public void onClick(int position) {
-                repo.deleteGroup(noteGroups.get(position));
+                NoteGroup noteGroup = noteGroups.get(position);
+                repo.deleteGroup(noteGroup);
+                NoteGroup viewModelNoteGroup = viewModel.getNoteGroupLiveData().getValue();
+                if (viewModelNoteGroup != null) {
+                    if (noteGroup.getUserId() == viewModelNoteGroup.getUserId() &&
+                            noteGroup.getGroupId() == viewModelNoteGroup.getGroupId()) {
+                        viewModel.setNoteGroupLiveData(new NoteGroup(noteGroup.getUserId(), 0, "全部笔记"));
+                        List<Notes> notesList = repo.getNotesList(viewModelNoteGroup.getUserId(), 0);
+                        viewModel.setNotesListLiveData(notesList);
+                    }
+                }
                 adapter.removeNoteGroup(position);
             }
         });
@@ -87,24 +91,27 @@ public class GroupFragment extends Fragment {
         adapter.setConfirmIvClickListener(new GroupManagementAdapter.ConfirmIvClickListener() {
             @Override
             public boolean onClick(int position, String editedGroupName) {
-                String groupName = noteGroups.get(position).getGroupName();
-                if (groupName.equals(editedGroupName)) {
-                    //ToastUtil.showToast(requireContext(),"该分组名已存在");
-                    Toast.makeText(requireContext(), "该分组名已存在", Toast.LENGTH_SHORT).show();
-                    return false;
-                }
-                if(editedGroupName.isEmpty()){
+                if (editedGroupName.isEmpty()) {
                     //ToastUtil.showToast(requireContext(),"分组名不能为空");
                     Toast.makeText(requireContext(), "分组名不能为空", Toast.LENGTH_SHORT).show();
+                    noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
+                    adapter.updateNoteGroupList(noteGroups);
                     return false;
                 }
-                noteGroups.get(position).setGroupName(editedGroupName);
-                repo.updateGroupName(noteGroups.get(position));
+
+                NoteGroup noteGroup = noteGroups.get(position);
+                noteGroup.setGroupName(editedGroupName);
+                boolean existed = repo.updateGroupName(noteGroup);
+                if (existed) {
+                    //ToastUtil.showToast(requireContext(),"该分组名已存在");
+                    Toast.makeText(requireContext(), "该分组名已存在", Toast.LENGTH_SHORT).show();
+                } else {
+                    //ToastUtil.showToast(requireContext(),"修改成功");
+                    Toast.makeText(requireContext(), "修改成功", Toast.LENGTH_SHORT).show();
+                }
                 noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
-                //ToastUtil.showToast(requireContext(),"修改成功");
-                Toast.makeText(requireContext(), "修改成功", Toast.LENGTH_SHORT).show();
                 adapter.updateNoteGroupList(noteGroups);
-                return true;
+                return existed;
             }
         });
 

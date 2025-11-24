@@ -66,6 +66,8 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
     @Override
     public void onBindViewHolder(@NonNull GroupManagementAdapter.ViewHolder holder, int position) {
         String originalGroupName = noteGroups.get(position).getGroupName();
+        //holder除了一开始的初始化，这个容器中的东西发生了什么都可以从holder获取
+        //内容有变要传一个新的集合要更新
         Log.d(TAG, "onBindViewHolder: "+originalGroupName);
         holder.editGroupName.setText(originalGroupName);
         editTextEnable(false, holder.editGroupName);
@@ -97,8 +99,8 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
                 @Override
                 public void onClick(View v) {
                     String editedGroupName = holder.editGroupName.getText().toString();
-                    boolean update = confirmIvClickListener.onClick(holder.getAdapterPosition(), editedGroupName);
-                    if (!update) {
+                    boolean exited = confirmIvClickListener.onClick(holder.getAdapterPosition(), editedGroupName);
+                    if (exited) {
                         holder.editGroupName.setText(originalGroupName);
                     }else {
                         holder.editGroupName.setText(editedGroupName);
