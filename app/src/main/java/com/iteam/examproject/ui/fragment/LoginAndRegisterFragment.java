@@ -47,7 +47,7 @@ public class LoginAndRegisterFragment extends Fragment {
 
         //从第二次打开都是上一次的账户，但如果是切换账户则不行，用SharedPreferences
         long userId = spf.getLong("userId", -1);
-        boolean changedUser = spf.getBoolean("changedUser", false);
+        boolean changedUser= Boolean.TRUE.equals(viewModel.getChangedUserLiveData().getValue());
         if(changedUser){
             binding.loginBtn.setText("切换账号");
         }
@@ -56,8 +56,7 @@ public class LoginAndRegisterFragment extends Fragment {
             String password = spf.getString("password", "");
             viewModel.setUserLiveData(new User(userId, account, password));
             viewModel.setNoteGroupLiveData(new NoteGroup(userId,0,"全部笔记"));
-            edit.putBoolean("changedUser", false);
-            edit.apply();
+            viewModel.setChangedUserLiveData(false);
             toNoteFragment();
         }
 
@@ -130,7 +129,7 @@ public class LoginAndRegisterFragment extends Fragment {
         edit.putLong("userId", user.getUserId());
         edit.putString("account", user.getAccount());
         edit.putString("password", user.getPassword());
-        edit.putBoolean("changedUser", false);
+        viewModel.setChangedUserLiveData(false);
         edit.apply();
     }
 
