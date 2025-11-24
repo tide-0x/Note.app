@@ -1,9 +1,9 @@
 package com.iteam.examproject.ui.fragment;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.DialogInterface;
-import android.content.Intent;
+import android.content.Context;
 import android.os.Bundle;
 
 import androidx.appcompat.widget.Toolbar;
@@ -18,31 +18,34 @@ import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.Toast;
 
 import com.iteam.examproject.R;
-import com.iteam.examproject.databinding.CustomizeAlertDialogBinding;
+import com.iteam.examproject.databinding.BackAlertDialogBinding;
+import com.iteam.examproject.databinding.DeleteAlertDialogBinding;
 import com.iteam.examproject.databinding.FragmentEditNoteBinding;
-import com.iteam.examproject.entity.NoteGroup;
 import com.iteam.examproject.entity.Notes;
 import com.iteam.examproject.repo.MyRepository;
 import com.iteam.examproject.repo.SharedDataRepository;
-import com.iteam.examproject.ui.activity.ContentActivity;
-import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
-import com.iteam.examproject.utils.ToastUtil;
 import com.iteam.examproject.viewmodel.MyViewModel;
 
 import java.util.List;
-import java.util.Objects;
 
 public class EditNoteFragment extends Fragment {
     private FragmentEditNoteBinding binding;
     private MyViewModel viewModel;
     private MyRepository repo;
-    private String title;
-    private String content;
+    private String title = "";
+    private String content = "";
     private SharedDataRepository sharedRepo;
+    private String originalTitle = "";
+    private String originalContent = "";
+    private boolean titleIsChanged;
+    private boolean contentIsChanged;
+    private Notes viewModelNotes;
+    private AlertDialog activeDialog;
 
     public EditNoteFragment() {
     }
@@ -79,7 +82,7 @@ public class EditNoteFragment extends Fragment {
         viewModel.getNotesLiveData().observe(getViewLifecycleOwner(), new Observer<Notes>() {
             @Override
             public void onChanged(Notes notes) {
-                if(notes==null){
+                if (notes == null) {
                     return;
                 }
                 if (!notes.getTitle().isEmpty()) {
@@ -88,7 +91,11 @@ public class EditNoteFragment extends Fragment {
                 if (!notes.getContent().isEmpty()) {
                     binding.noteContentEdit.setText(notes.getContent());
                 }
+                //originalTitle是否为空也可以判断是来自新建笔记还是已存在的笔记
+                originalTitle = notes.getTitle();
+                originalContent = notes.getContent();
 
+                viewModelNotes = notes;
             }
         });
 
@@ -99,39 +106,28 @@ public class EditNoteFragment extends Fragment {
             public void onClick(View v) {
                 title = binding.noteTitleEdit.getText().toString();
                 content = binding.noteContentEdit.getText().toString();
-                if (title.isEmpty() && !content.isEmpty()) {//有内容但标题为空
-                    //ToastUtil.showToast(requireContext(),"标题不能为空");
-                    Toast.makeText(requireContext(), "标题不能为空", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                if (content.isEmpty() && title.isEmpty()) {
-                    //没有编辑，清空临时notes并finish
-                    sharedRepo.setNotes(new Notes(-1,-1,-1,"","",-1));
-                    requireActivity().finish();
-                    return;
-                }
-                //其余情况
-                long editedTime = System.currentTimeMillis();
-                //在全部笔记中还是在其他分组中
-                //NoteFragment中viewmodel数据进行了更新
-                Notes notes1 =sharedRepo.getNotesLiveData().getValue();
-                if (notes1 != null) {
-                    notes1.setEditTime(editedTime);
-                    notes1.setTitle(title);
-                    notes1.setContent(content);
-                    if (notes1.getNotesId() == -1) {//从创建笔记的按钮来到这个fragment
-                        long notesId=repo.createNote(notes1.getUserId(), notes1.getGroupId(), notes1.getTitle(), notes1.getContent(), editedTime);
-                        notes1.setNotesId(notesId);
-                    } else {//从某个分组中来到这个fragment
-                        //有无编辑都会覆盖
-                        repo.updateNotes(notes1);
+
+                //标题内容是否更改
+                titleIsChanged = !title.equals(originalTitle);
+                contentIsChanged = !content.equals(originalContent);
+
+                if (titleIsChanged || contentIsChanged) {//标题内容至少有一个发生了改变
+                    if (title.isEmpty() && !content.isEmpty()) {//有内容但标题为空
+                        //ToastUtil.showToast(requireContext(),"标题不能为空");
+                        Toast.makeText(requireContext(), "标题不能为空", Toast.LENGTH_SHORT).show();
+                    } else {
+                        //1.都为空
+                        //2.都不为空
+                        //3.有标题没内容
+                        backAlertDialog();
+                        //弹出对话框处理保存/取消，注意这里直接返回，不在此处 finish
                     }
-                    List<Notes> refreshed=repo.getNotesList(notes1.getUserId(), notes1.getGroupId());
-                    sharedRepo.setNotesList(refreshed);
-                    //清空临时notes防止下次新建保留
-                    sharedRepo.setNotes(new Notes(-1,-1,-1,"","",-1));
-                    requireActivity().finish();
+                    return;
                 }
+                //有编辑但保存好了/没有发生变化
+                //清空临时notes防止下次新建保留
+                sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
+                requireActivity().finish();
             }
         });
 
@@ -141,11 +137,11 @@ public class EditNoteFragment extends Fragment {
             public boolean onMenuItemClick(MenuItem item) {
                 int itemId = item.getItemId();
                 if (itemId == R.id.delete) {//删除笔记
+                    //删除：要么有，要么无
                     title = binding.noteTitleEdit.getText().toString();
                     content = binding.noteContentEdit.getText().toString();
-                    //点开了但标题和内容为空
-                    //todo:全删干净了再按删除键
-                    if (title.isEmpty() && content.isEmpty()) {
+                    //新建笔记处点开，没有进行保存
+                    if (originalTitle.isEmpty() && originalContent.isEmpty()) {
                         requireActivity().finish();
                     } else {//标题和内容至少有一个不为空
                         deleteNotesAlertDialog();
@@ -155,8 +151,40 @@ public class EditNoteFragment extends Fragment {
                     //保存笔记：创建或更新后刷新列表，清空临时notes，finish
                     title = binding.noteTitleEdit.getText().toString();
                     content = binding.noteContentEdit.getText().toString();
-                    if (title.isEmpty() && content.isEmpty()) {
-                        sharedRepo.setNotes(new Notes(-1,-1,-1,"","",-1));
+                    //保存时判断和一开始进入该篇笔记时是否发生变化
+                    titleIsChanged = !title.equals(originalTitle);
+                    contentIsChanged = !content.equals(originalContent);
+                    if (titleIsChanged || contentIsChanged) {//标题和内容至少有一个发生改变
+                        //标题内容都为空->变相删除笔记
+                        if (title.isEmpty() && content.isEmpty()) {
+                            List<Notes> refreshed = repo.deleteNotes(viewModelNotes.getUserId(), viewModelNotes.getGroupId(), viewModelNotes.getNotesId());
+                            sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
+                            viewModel.setNotesListLiveData(refreshed);
+                            requireActivity().finish();
+                            return true;
+                        } else if (!content.isEmpty() && title.isEmpty()) {
+                            //有内容但没标题
+                            //ToastUtil.showToast(requireContext(),"标题不能为空");
+                            Toast.makeText(requireContext(), "标题不能为空", Toast.LENGTH_SHORT).show();
+                            return true;
+                        } else {//一般情况
+                            //后续用户又点击保存后判断是否有变化
+                            originalTitle = title;
+                            originalContent = content;
+                            SaveNotesData();
+                            Toast.makeText(requireContext(), "保存成功", Toast.LENGTH_SHORT).show();
+                            //清空临时notes防止下次新建保存旧内容（返回时再清空）
+                            //requireActivity().finish();
+                        }
+                    } else {//什么都没有改变
+                        if (title.isEmpty() && content.isEmpty()) {//没有编辑（新建笔记处来，什么都没有就点了保存）
+                            Toast.makeText(requireContext(), "有东西才会保存喔", Toast.LENGTH_SHORT).show();
+                        } else {//已保存过又点击了保存
+                            Toast.makeText(requireContext(), "内容已保存", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                    /*if (title.isEmpty() && content.isEmpty()) {
+                        sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
                         requireActivity().finish();
                         //todo:是否需要手动消费事件
                         return true;
@@ -165,27 +193,7 @@ public class EditNoteFragment extends Fragment {
                         //ToastUtil.showToast(requireContext(),"标题不能为空");
                         Toast.makeText(requireContext(), "标题不能为空", Toast.LENGTH_SHORT).show();
                         return true;
-                    }
-                    Notes notes = sharedRepo.getNotesLiveData().getValue();
-                    long editedTime = System.currentTimeMillis();
-                    if (notes != null) {
-                        notes.setEditTime(editedTime);
-                        notes.setTitle(title);
-                        notes.setContent(content);
-                        if (notes.getNotesId() == -1) {//从创建笔记处来到这个fragment
-                            long notesId = repo.createNote(notes.getUserId(), notes.getGroupId(), notes.getTitle(), notes.getContent(), editedTime);
-                            notes.setNotesId(notesId);
-                        } else {//从某个分组中来到这个fragment
-                            repo.updateNotes(notes);
-                        }
-                        //ToastUtil.showToast(requireContext(),"保存成功");
-                        //刷新当前分组的笔记列表并通知仓库观察者
-                        List<Notes> refreshed=repo.getNotesList(notes.getUserId(), notes.getGroupId());
-                        sharedRepo.setNotesList(refreshed);
-                        //清空临时notes防止下次新建保存旧内容
-                        Toast.makeText(requireContext(), "保存成功", Toast.LENGTH_SHORT).show();
-                        //requireActivity().finish();
-                    }
+                    }*/
                 }
                 return true;
             }
@@ -194,21 +202,91 @@ public class EditNoteFragment extends Fragment {
         return binding.getRoot();
     }
 
-    private void deleteNotesAlertDialog() {
+    private void SaveNotesData() {
+        long editedTime = System.currentTimeMillis();
+        //在全部笔记中还是在其他分组中
+        //NoteFragment中viewmodel数据进行了更新
+        Notes notes = sharedRepo.getNotesLiveData().getValue();
+        if (notes != null) {
+            notes.setEditTime(editedTime);
+            notes.setTitle(title);
+            notes.setContent(content);
+            if (notes.getNotesId() == -1) {//从创建笔记的按钮来到这个fragment
+                long notesId = repo.createNote(notes.getUserId(), notes.getGroupId(), notes.getTitle(), notes.getContent(), editedTime);
+                notes.setNotesId(notesId);
+            } else {//从某个分组中来到这个fragment
+                repo.updateNotes(notes);
+            }
+            //ToastUtil.showToast(requireContext(),"保存成功");
+            //刷新当前分组的笔记列表并通知仓库观察者
+            List<Notes> refreshed = repo.getNotesList(notes.getUserId(), notes.getGroupId());
+            sharedRepo.setNotesList(refreshed);
+        }
+    }
+
+    private void backAlertDialog() {
+        BackAlertDialogBinding backAlertDialogBinding = BackAlertDialogBinding.inflate(getLayoutInflater());
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
-        CustomizeAlertDialogBinding customizeAlertDialogBinding = CustomizeAlertDialogBinding.inflate(getLayoutInflater());
-        AlertDialog alertDialog = builder.setView(customizeAlertDialogBinding.getRoot()).create();
-        customizeAlertDialogBinding.customizeAlertDialogTitle.setText("提示");
-        customizeAlertDialogBinding.customizeAlertDialogMessage.setText("是否要删除该笔记");
-        //取消
-        customizeAlertDialogBinding.customizeAlertDialogCancel.setOnClickListener(new View.OnClickListener() {
+        AlertDialog alertDialog = builder.setView(backAlertDialogBinding.getRoot()).create();
+        activeDialog = alertDialog;
+        //取消-->直接返回，数据不发生更改
+        backAlertDialogBinding.backAlertDialogCancel.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 alertDialog.dismiss();
+                activeDialog = null;
+                requireActivity().finish();
+            }
+        });
+        //保存-->返回，数据发生更改
+        backAlertDialogBinding.backAlertDialogSave.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                //1.都为空
+                if (title.isEmpty() && content.isEmpty()) {//返回选择保存时标题内容都为空
+                    //等效删除
+                    //删除在数据库中的记录
+                    //创建处删除
+                    //某个分组中的笔记删除
+                    Notes notes = sharedRepo.getNotesLiveData().getValue();
+                    if (notes != null) {
+                        List<Notes> notesList = repo.deleteNotes(notes.getUserId(), notes.getGroupId(), notes.getNotesId());
+                        sharedRepo.setNotesList(notesList);
+                        sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
+                        alertDialog.dismiss();
+                        activeDialog = null;
+                        requireActivity().finish();
+                        return;
+                    }
+                }
+                //2.都不为空
+                //3.有标题没内容
+                alertDialog.dismiss();
+                activeDialog = null;
+                SaveNotesData();
+                requireActivity().finish();
+            }
+        });
+        alertDialog.show();
+    }
+
+    private void deleteNotesAlertDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        DeleteAlertDialogBinding deleteAlertDialog = DeleteAlertDialogBinding.inflate(getLayoutInflater());
+        AlertDialog alertDialog = builder.setView(deleteAlertDialog.getRoot()).create();
+        deleteAlertDialog.customizeAlertDialogTitle.setText("提示");
+        deleteAlertDialog.customizeAlertDialogMessage.setText("是否要删除该笔记");
+        activeDialog = alertDialog;
+        //取消
+        deleteAlertDialog.customizeAlertDialogCancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                alertDialog.dismiss();
+                activeDialog = null;
             }
         });
         //确定删除
-        customizeAlertDialogBinding.customizeAlertDialogConfirm.setOnClickListener(new View.OnClickListener() {
+        deleteAlertDialog.customizeAlertDialogConfirm.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 //删除在数据库中的记录
@@ -218,23 +296,40 @@ public class EditNoteFragment extends Fragment {
                 if (notes != null) {
                     List<Notes> notesList = repo.deleteNotes(notes.getUserId(), notes.getGroupId(), notes.getNotesId());
                     sharedRepo.setNotesList(notesList);
-                    sharedRepo.setNotes(new Notes(-1,-1,-1,"","",-1));
-                    requireActivity().finish();
+                    sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
                 }
-
                 alertDialog.dismiss();
+                activeDialog = null;
+                requireActivity().finish();
             }
         });
         alertDialog.show();
     }
 
+
+
     private void init() {
         binding = FragmentEditNoteBinding.inflate(getLayoutInflater());
-        sharedRepo=SharedDataRepository.getInstance();
+        sharedRepo = SharedDataRepository.getInstance();
         viewModel = new ViewModelProvider(this).get(MyViewModel.class);
         repo = new MyRepository(requireContext());
         repo.open();
+    }
 
 
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        //确保对话框被dismiss，防止leaked window
+        if (activeDialog != null && activeDialog.isShowing()) {
+            activeDialog.dismiss();
+            activeDialog = null;
+        }
+        //关闭repo，释放资源
+        if (repo != null) {
+            repo.close();
+            repo = null;
+        }
+        binding = null;
     }
 }
