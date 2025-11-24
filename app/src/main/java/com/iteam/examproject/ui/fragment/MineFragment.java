@@ -92,9 +92,8 @@ public class MineFragment extends Fragment {
         binding.exchangeAccountBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                edit.putBoolean("changedUser", true);
-                edit.apply();
-                Intent intent=new Intent(new Intent(requireContext(), LoginAndRegisterActivity.class));
+                viewModel.setChangedUserLiveData(true);
+                Intent intent = new Intent(new Intent(requireContext(), LoginAndRegisterActivity.class));
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
                 requireActivity().finish();
@@ -118,6 +117,7 @@ public class MineFragment extends Fragment {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 repo.cancelUser(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
+                                viewModel.setChangedUserLiveData(false);
                                 updateSPF();
                                 edit.apply();
                                 Intent intent = new Intent(requireContext(), LoginAndRegisterActivity.class);
@@ -135,6 +135,7 @@ public class MineFragment extends Fragment {
         binding.exitAccountBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                viewModel.setChangedUserLiveData(false);
                 updateSPF();
                 edit.apply();
                 Intent intent = new Intent(requireContext(), LoginAndRegisterActivity.class);
@@ -156,7 +157,6 @@ public class MineFragment extends Fragment {
         edit.putLong("userId", -1);
         edit.putString("account", "");
         edit.putString("password", "");
-        edit.putBoolean("changedUser", false);
     }
 
     private void init() {

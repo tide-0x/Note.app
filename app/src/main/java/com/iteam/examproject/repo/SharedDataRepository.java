@@ -20,6 +20,7 @@ public class SharedDataRepository {
     private final MutableLiveData<NoteGroup> noteGroupLiveData = new MutableLiveData<>(new NoteGroup(-1, 0, "全部笔记"));
     private final MutableLiveData<List<Notes>> notesListLiveData = new MutableLiveData<>(new ArrayList<>());
     private final MutableLiveData<Notes> notesLiveData = new MutableLiveData<>(new Notes(-1, -1, -1, "", "", -1));
+    private final MutableLiveData<Boolean> changedUserLiveData=new MutableLiveData<>(false);
 
     private SharedDataRepository() {}
 
@@ -57,6 +58,14 @@ public class SharedDataRepository {
     }
     public void setNotes(Notes notes) {
         notesLiveData.setValue(notes);
+    }
+
+    // ChangedUser
+    public void setChangedUser(boolean changedUser){
+        changedUserLiveData.setValue(changedUser);
+    }
+    public LiveData<Boolean> getChangedUserLiveData(){
+        return changedUserLiveData;
     }
 }
 

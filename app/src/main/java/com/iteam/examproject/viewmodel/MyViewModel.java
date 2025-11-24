@@ -1,7 +1,6 @@
 package com.iteam.examproject.viewmodel;
 
 import androidx.lifecycle.LiveData;
-import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.iteam.examproject.entity.NoteGroup;
@@ -9,9 +8,7 @@ import com.iteam.examproject.entity.Notes;
 import com.iteam.examproject.entity.User;
 import com.iteam.examproject.repo.SharedDataRepository;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 public class MyViewModel extends ViewModel {
     private final SharedDataRepository repository=SharedDataRepository.getInstance();
@@ -54,6 +51,14 @@ public class MyViewModel extends ViewModel {
 
     public LiveData<Notes> getNotesLiveData(){
         return repository.getNotesLiveData();
+    }
+
+    public void setChangedUserLiveData(boolean changedUser){
+        repository.setChangedUser(changedUser);
+    }
+
+    public LiveData<Boolean> getChangedUserLiveData(){
+        return repository.getChangedUserLiveData();
     }
 
 }
