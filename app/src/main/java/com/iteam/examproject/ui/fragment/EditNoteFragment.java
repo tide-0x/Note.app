@@ -173,8 +173,6 @@ public class EditNoteFragment extends Fragment {
                             originalContent = content;
                             SaveNotesData();
                             Toast.makeText(requireContext(), "保存成功", Toast.LENGTH_SHORT).show();
-                            //清空临时notes防止下次新建保存旧内容（返回时再清空）
-                            //requireActivity().finish();
                         }
                     } else {//什么都没有改变
                         if (title.isEmpty() && content.isEmpty()) {//没有编辑（新建笔记处来，什么都没有就点了保存）
@@ -183,17 +181,6 @@ public class EditNoteFragment extends Fragment {
                             Toast.makeText(requireContext(), "内容已保存", Toast.LENGTH_SHORT).show();
                         }
                     }
-                    /*if (title.isEmpty() && content.isEmpty()) {
-                        sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
-                        requireActivity().finish();
-                        //todo:是否需要手动消费事件
-                        return true;
-                    } else if (!content.isEmpty() && title.isEmpty()) {
-                        //有内容但没标题
-                        //ToastUtil.showToast(requireContext(),"标题不能为空");
-                        Toast.makeText(requireContext(), "标题不能为空", Toast.LENGTH_SHORT).show();
-                        return true;
-                    }*/
                 }
                 return true;
             }
