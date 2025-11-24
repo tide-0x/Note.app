@@ -336,17 +336,23 @@ public class MyRepository {
 
 
     //修改分组名
-    public void updateGroupName(NoteGroup noteGroup) {
-        values.put(MyDatabaseHelper.GROUP_NAME, noteGroup.getGroupName());
-        //分组表
-        //update table_groups
-        //set groupName values groupName
-        //where userId=userId and groupId=groupId
-        database.update(MyDatabaseHelper.TABLE_GROUPS,
-                values,
-                MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=?",
-                new String[]{String.valueOf(noteGroup.getUserId()),
-                        String.valueOf(noteGroup.getGroupId())});
+    public boolean updateGroupName(NoteGroup noteGroup) {
+        boolean existed=isExisted(MyDatabaseHelper.TABLE_GROUPS,
+                MyDatabaseHelper.USER_ID+"=? and "+MyDatabaseHelper.GROUP_NAME+"=?",
+                new String[]{String.valueOf(noteGroup.getUserId()), noteGroup.getGroupName()});
+        if (!existed) {
+            values.put(MyDatabaseHelper.GROUP_NAME, noteGroup.getGroupName());
+            //分组表
+            //update table_groups
+            //set groupName values groupName
+            //where userId=userId and groupId=groupId
+            database.update(MyDatabaseHelper.TABLE_GROUPS,
+                    values,
+                    MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=?",
+                    new String[]{String.valueOf(noteGroup.getUserId()),
+                            String.valueOf(noteGroup.getGroupId())});
+        }
+        return existed;
     }
 
     //获取分组
