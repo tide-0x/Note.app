@@ -22,3 +22,6 @@ app/release/
 # 系统
 .DS_Store
 Thumbs.db
+
+# 本地工具缓存
+.workbuddy/
