@@ -50,13 +50,15 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.ViewHolder> {
     @Override
     public void onBindViewHolder(@NonNull NoteAdapter.ViewHolder holder, int position) {
         holder.textView.setText(notes.get(position).getTitle());
-        //todo:先判空或者先设置监听事件，效果是否一样
         //点击
         if (noteClickListener != null) {
             holder.itemView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    noteClickListener.onClick(holder.getAdapterPosition());
+                    int currentPosition = holder.getBindingAdapterPosition();
+                    if (currentPosition != RecyclerView.NO_POSITION) {
+                        noteClickListener.onClick(currentPosition);
+                    }
                 }
             });
         }
@@ -65,8 +67,9 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.ViewHolder> {
         holder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
-                if (noteLongClickListener != null) {
-                    noteLongClickListener.onLongClick(holder.getAdapterPosition());
+                int currentPosition = holder.getBindingAdapterPosition();
+                if (noteLongClickListener != null && currentPosition != RecyclerView.NO_POSITION) {
+                    noteLongClickListener.onLongClick(currentPosition);
                     return true;
                 }
                 return false;

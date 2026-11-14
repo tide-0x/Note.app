@@ -91,22 +91,25 @@ public class GroupFragment extends Fragment {
         adapter.setConfirmIvClickListener(new GroupManagementAdapter.ConfirmIvClickListener() {
             @Override
             public boolean onClick(int position, String editedGroupName) {
-                if (editedGroupName.isEmpty()) {
-                    //ToastUtil.showToast(requireContext(),"分组名不能为空");
+                String groupName = editedGroupName.trim();
+                if (groupName.isEmpty()) {
                     Toast.makeText(requireContext(), "分组名不能为空", Toast.LENGTH_SHORT).show();
                     noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
                     adapter.updateNoteGroupList(noteGroups);
-                    return false;
+                    return true;
                 }
 
                 NoteGroup noteGroup = noteGroups.get(position);
-                noteGroup.setGroupName(editedGroupName);
+                //名字没变，直接当成功处理，不必再去数据库查重
+                if (groupName.equals(noteGroup.getGroupName())) {
+                    return false;
+                }
+
+                noteGroup.setGroupName(groupName);
                 boolean existed = repo.updateGroupName(noteGroup);
                 if (existed) {
-                    //ToastUtil.showToast(requireContext(),"该分组名已存在");
                     Toast.makeText(requireContext(), "该分组名已存在", Toast.LENGTH_SHORT).show();
                 } else {
-                    //ToastUtil.showToast(requireContext(),"修改成功");
                     Toast.makeText(requireContext(), "修改成功", Toast.LENGTH_SHORT).show();
                 }
                 noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());

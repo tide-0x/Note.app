@@ -255,12 +255,13 @@ public class MyRepository {
     public List<Notes> getNotesList(long userId, long groupId) {
         Cursor cursor = null;
         try {
-            //select * from table_notes where userId=userId and groupId=groupId
+            //select * from table_notes where userId=userId and groupId=groupId order by editedTime desc
+            //不加排序时 SQLite 返回顺序不受控，这里默认按编辑时间倒序（最新在前）
             cursor = database.query(MyDatabaseHelper.TABLE_NOTES,
                     null,
                     MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=?",
                     new String[]{String.valueOf(userId), String.valueOf(groupId)},
-                    null, null, null, null);
+                    null, null, MyDatabaseHelper.EDIT_TIME + " " + SORT_DESC, null);
             return gainNotesList(cursor);
         } finally {
             if (cursor != null) {
@@ -336,10 +337,12 @@ public class MyRepository {
 
 
     //修改分组名
+    //返回值：true 表示重名（修改失败），false 表示修改成功
     public boolean updateGroupName(NoteGroup noteGroup) {
+        //查重时要排除自己，否则名字没改也会被判成重名
         boolean existed=isExisted(MyDatabaseHelper.TABLE_GROUPS,
-                MyDatabaseHelper.USER_ID+"=? and "+MyDatabaseHelper.GROUP_NAME+"=?",
-                new String[]{String.valueOf(noteGroup.getUserId()), noteGroup.getGroupName()});
+                MyDatabaseHelper.USER_ID+"=? and "+MyDatabaseHelper.GROUP_NAME+"=? and "+MyDatabaseHelper.GROUP_ID+"<>?",
+                new String[]{String.valueOf(noteGroup.getUserId()), noteGroup.getGroupName(), String.valueOf(noteGroup.getGroupId())});
         if (!existed) {
             values.put(MyDatabaseHelper.GROUP_NAME, noteGroup.getGroupName());
             //分组表
@@ -411,13 +414,19 @@ public class MyRepository {
 
     public List<Notes> searchResult(long userId,String keyWord){
         Cursor cursor=null;
-        //select * from table_notes where userId=userId and groupId=0 and title like keyWord
-        cursor=database.query(MyDatabaseHelper.TABLE_NOTES,
-                null,
-                MyDatabaseHelper.USER_ID+"=? and "+MyDatabaseHelper.GROUP_ID+"=? and "+MyDatabaseHelper.TITLE+" like ?",
-                new String[]{String.valueOf(userId),String.valueOf(0),"%"+keyWord+"%"},
-                null,null,null,null);
-        return gainNotesList(cursor);
+        try {
+            //select * from table_notes where userId=userId and groupId=0 and title like keyWord
+            cursor=database.query(MyDatabaseHelper.TABLE_NOTES,
+                    null,
+                    MyDatabaseHelper.USER_ID+"=? and "+MyDatabaseHelper.GROUP_ID+"=? and "+MyDatabaseHelper.TITLE+" like ?",
+                    new String[]{String.valueOf(userId),String.valueOf(0),"%"+keyWord+"%"},
+                    null,null,MyDatabaseHelper.EDIT_TIME+" "+SORT_DESC,null);
+            return gainNotesList(cursor);
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
     }
 
 

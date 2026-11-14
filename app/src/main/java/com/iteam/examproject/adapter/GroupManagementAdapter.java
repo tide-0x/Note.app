@@ -48,7 +48,7 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
 
     public void addNoteGroup(NoteGroup noteGroup){
         noteGroups.add(noteGroup);
-        notifyItemInserted(noteGroups.size());
+        notifyItemInserted(noteGroups.size() - 1);
     }
 
     public void removeNoteGroup(int position){
@@ -86,9 +86,10 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
             holder.garbageCanIv.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    garbageCanIvClickListener.onClick(holder.getAdapterPosition());
-                    //应该是可以直接写这里，当这样误操作真的就被删了
-                    //notifyItemRemoved();
+                    int currentPosition = holder.getBindingAdapterPosition();
+                    if (currentPosition != RecyclerView.NO_POSITION) {
+                        garbageCanIvClickListener.onClick(currentPosition);
+                    }
                 }
             });
         }
@@ -98,15 +99,20 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
             holder.confirmIv.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    String editedGroupName = holder.editGroupName.getText().toString();
-                    boolean exited = confirmIvClickListener.onClick(holder.getAdapterPosition(), editedGroupName);
+                    String editedGroupName = holder.editGroupName.getText().toString().trim();
+                    int currentPosition = holder.getBindingAdapterPosition();
+                    if (currentPosition == RecyclerView.NO_POSITION) {
+                        return;
+                    }
+                    //返回 true 表示重名/失败，需要还原成原来的名字
+                    boolean exited = confirmIvClickListener.onClick(currentPosition, editedGroupName);
                     if (exited) {
                         holder.editGroupName.setText(originalGroupName);
-                    }else {
+                    } else {
                         holder.editGroupName.setText(editedGroupName);
                     }
                     holder.confirmIv.setVisibility(View.GONE);
-                    editTextEnable(false,holder.editGroupName);
+                    editTextEnable(false, holder.editGroupName);
                 }
             });
 

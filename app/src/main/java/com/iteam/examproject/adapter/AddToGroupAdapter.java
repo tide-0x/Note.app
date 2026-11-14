@@ -47,8 +47,9 @@ public class AddToGroupAdapter extends RecyclerView.Adapter<AddToGroupAdapter.Vi
         holder.itemView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (onItemClickListener != null) {
-                    onItemClickListener.onClick(holder.getAdapterPosition());
+                int currentPosition = holder.getBindingAdapterPosition();
+                if (onItemClickListener != null && currentPosition != RecyclerView.NO_POSITION) {
+                    onItemClickListener.onClick(currentPosition);
                 }
             }
         });

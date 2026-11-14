@@ -37,7 +37,10 @@ public class BottomDialogGroupAdapter extends RecyclerView.Adapter<BottomDialogG
             holder.itemView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    listener.onClick(holder.getAdapterPosition());
+                    int currentPosition = holder.getBindingAdapterPosition();
+                    if (currentPosition != RecyclerView.NO_POSITION) {
+                        listener.onClick(currentPosition);
+                    }
                 }
             });
         }
