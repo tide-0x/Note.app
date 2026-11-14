@@ -93,6 +93,31 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
         notifyItemRemoved(position);
     }
 
+    /**
+     * 按位置取分组。
+     * 列表数据由适配器自己持有，外部不要拿自己的 List 去按 position 索引：
+     * 增删之后两边长度会不一致，容易越界或取错行。
+     */
+    public NoteGroup getItem(int position) {
+        if (position < 0 || position >= noteGroups.size()) {
+            return null;
+        }
+        return noteGroups.get(position);
+    }
+
+    /** 按 groupId 找当前下标，找不到返回 -1 */
+    public int indexOf(NoteGroup noteGroup) {
+        if (noteGroup == null) {
+            return -1;
+        }
+        for (int i = 0; i < noteGroups.size(); i++) {
+            if (noteGroups.get(i).getGroupId() == noteGroup.getGroupId()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     @NonNull
     @Override
     public GroupManagementAdapter.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -141,15 +166,16 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
                     if (currentPosition == RecyclerView.NO_POSITION) {
                         return;
                     }
-                    //返回 true 表示重名/失败，需要还原成原来的名字
-                    boolean exited = confirmIvClickListener.onClick(currentPosition, editedGroupName);
-                    if (exited) {
-                        holder.editGroupName.setText(originalGroupName);
-                    } else {
-                        holder.editGroupName.setText(editedGroupName);
-                    }
-                    holder.confirmIv.setVisibility(View.GONE);
-                    editTextEnable(false, holder.editGroupName);
+                    //改名要走数据库，结果异步回传：failed=true 表示重名，需要还原成原来的名字
+                    confirmIvClickListener.onConfirm(currentPosition, editedGroupName, failed -> {
+                        //等待数据库返回期间列表可能已经变了，这一行被复用就不要再改它
+                        if (holder.getBindingAdapterPosition() != currentPosition) {
+                            return;
+                        }
+                        holder.editGroupName.setText(failed ? originalGroupName : editedGroupName);
+                        holder.confirmIv.setVisibility(View.GONE);
+                        editTextEnable(false, holder.editGroupName);
+                    });
                 }
             });
 
@@ -194,6 +220,15 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
     }
 
     public interface ConfirmIvClickListener {
-        boolean onClick(int position, String editedGroupName);
+        /**
+         * 确认改名。数据库操作可能是异步的，处理完再调用 done 回传结果。
+         *
+         * @param done failed = true 表示重名或失败，需要把输入框还原成原名
+         */
+        void onConfirm(int position, String editedGroupName, ResultCallback done);
+    }
+
+    public interface ResultCallback {
+        void onResult(boolean failed);
     }
 }

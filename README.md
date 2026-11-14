@@ -62,14 +62,15 @@ app/src/main/java/com/iteam/examproject/
 ## 数据流与线程
 
 - `MyRepository` 是单例，全进程只有一条 SQLite 连接，生命周期跟随进程，业务代码不需要开关连接。
+- 所有数据库操作都在一条名为 `note-db` 的后台线程上**串行**执行：界面层用 `runAsync(work, callback)` 提交，
+  结果经主线程 Handler 回调。串行既保证「先写后读」的顺序，也天然避免并发写。
+- 界面层不要直接调用 `MyRepository` 上的同步方法，那会在调用线程上当场执行 SQL。
 - `SharedDataRepository` 的写入统一经过 `setSafely()`：主线程用 `setValue()` 同步生效，子线程自动降级为 `postValue()`。
-  因此**子线程写完不能紧接着 `getValue()` 读**，读要靠 `observe` 回调；主线程的「先写后读」不受影响。
-- 目前所有数据库读写仍在主线程，后续若改为异步，只需关注上面这条约定。
 
 ## 已知问题
 
 - 界面逻辑层仍用匿名内部类而非 lambda，`ContentActivity` 的 Fragment 切换为手写实现
-- 数据库读写仍在主线程执行，笔记量大时可能卡顿
+- `runAsync` 没有错误回传：数据库操作抛异常时只记日志并回调 `null`，界面层需要自己判空
 
 ## License
 

@@ -156,10 +156,17 @@ public class EditNoteFragment extends Fragment {
                     if (titleIsChanged || contentIsChanged) {//标题和内容至少有一个发生改变
                         //标题内容都为空->变相删除笔记
                         if (title.isEmpty() && content.isEmpty()) {
-                            List<Notes> refreshed = repo.deleteNotes(viewModelNotes.getUserId(), viewModelNotes.getGroupId(), viewModelNotes.getNotesId());
-                            sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
-                            viewModel.setNotesListLiveData(refreshed);
-                            requireActivity().finish();
+                            //删库也是 IO，删完再关页面
+                            long notesUserId = viewModelNotes.getUserId();
+                            long notesGroupId = viewModelNotes.getGroupId();
+                            long notesId = viewModelNotes.getNotesId();
+                            repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), refreshed -> {
+                                sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
+                                viewModel.setNotesListLiveData(refreshed);
+                                if (isAdded()) {
+                                    requireActivity().finish();
+                                }
+                            });
                             return true;
                         } else if (!content.isEmpty() && title.isEmpty()) {
                             //有内容但没标题
@@ -169,8 +176,11 @@ public class EditNoteFragment extends Fragment {
                             //后续用户又点击保存后判断是否有变化
                             originalTitle = title;
                             originalContent = content;
-                            SaveNotesData();
-                            Toast.makeText(requireContext(), getString(R.string.save_success), Toast.LENGTH_SHORT).show();
+                            SaveNotesData(() -> {
+                                if (isAdded()) {
+                                    Toast.makeText(requireContext(), getString(R.string.save_success), Toast.LENGTH_SHORT).show();
+                                }
+                            });
                         }
                     } else {//什么都没有改变
                         if (title.isEmpty() && content.isEmpty()) {//没有编辑（新建笔记处来，什么都没有就点了保存）
@@ -187,24 +197,62 @@ public class EditNoteFragment extends Fragment {
         return binding.getRoot();
     }
 
-    private void SaveNotesData() {
+    /**
+     * 保存当前笔记：新建走 createNote，已存在的走 updateNotes，然后刷新当前分组的列表。
+     * 写库在 IO 线程，onSaved 在主线程回调；需要界面跳转或提示的，都放进 onSaved。
+     */
+    private void SaveNotesData(Runnable onSaved) {
         long editedTime = System.currentTimeMillis();
         //在全部笔记中还是在其他分组中
         //NoteFragment中viewmodel数据进行了更新
         Notes notes = sharedRepo.getNotesLiveData().getValue();
-        if (notes != null) {
-            notes.setEditTime(editedTime);
-            notes.setTitle(title);
-            notes.setContent(content);
-            if (notes.getNotesId() == -1) {//从创建笔记的按钮来到这个fragment
-                long notesId = repo.createNote(notes.getUserId(), notes.getGroupId(), notes.getTitle(), notes.getContent(), editedTime);
-                notes.setNotesId(notesId);
+        if (notes == null) {
+            if (onSaved != null) {
+                onSaved.run();
+            }
+            return;
+        }
+        notes.setEditTime(editedTime);
+        notes.setTitle(title);
+        notes.setContent(content);
+
+        final boolean isNew = notes.getNotesId() == -1;
+        final long userId = notes.getUserId();
+        final long groupId = notes.getGroupId();
+        final String noteTitle = notes.getTitle();
+        final String noteContent = notes.getContent();
+        repo.runAsync(() -> {
+            long newNotesId = -1;
+            if (isNew) {//从创建笔记的按钮来到这个fragment
+                newNotesId = repo.createNote(userId, groupId, noteTitle, noteContent, editedTime);
             } else {//从某个分组中来到这个fragment
                 repo.updateNotes(notes);
             }
+            //写完顺手把当前分组的列表读回来，避免调两次 runAsync
+            return new SaveResult(newNotesId, repo.getNotesList(userId, groupId));
+        }, result -> {
+            if (result == null) {
+                return;
+            }
+            if (result.notesId > 0) {
+                notes.setNotesId(result.notesId);
+            }
             //刷新当前分组的笔记列表并通知仓库观察者
-            List<Notes> refreshed = repo.getNotesList(notes.getUserId(), notes.getGroupId());
-            sharedRepo.setNotesList(refreshed);
+            sharedRepo.setNotesList(result.notes);
+            if (onSaved != null) {
+                onSaved.run();
+            }
+        });
+    }
+
+    /** runAsync 的返回包：新建出来的 notesId + 刷新后的列表 */
+    private static class SaveResult {
+        final long notesId;
+        final List<Notes> notes;
+
+        SaveResult(long notesId, List<Notes> notes) {
+            this.notesId = notesId;
+            this.notes = notes;
         }
     }
 
@@ -228,18 +276,21 @@ public class EditNoteFragment extends Fragment {
             public void onClick(View v) {
                 //1.都为空
                 if (title.isEmpty() && content.isEmpty()) {//返回选择保存时标题内容都为空
-                    //等效删除
-                    //删除在数据库中的记录
-                    //创建处删除
-                    //某个分组中的笔记删除
+                    //等效删除：删掉数据库里的记录
                     Notes notes = sharedRepo.getNotesLiveData().getValue();
                     if (notes != null) {
-                        List<Notes> notesList = repo.deleteNotes(notes.getUserId(), notes.getGroupId(), notes.getNotesId());
-                        sharedRepo.setNotesList(notesList);
-                        sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
+                        long notesUserId = notes.getUserId();
+                        long notesGroupId = notes.getGroupId();
+                        long notesId = notes.getNotesId();
                         alertDialog.dismiss();
                         activeDialog = null;
-                        requireActivity().finish();
+                        repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), notesList -> {
+                            sharedRepo.setNotesList(notesList);
+                            sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
+                            if (isAdded()) {
+                                requireActivity().finish();
+                            }
+                        });
                         return;
                     }
                 }
@@ -247,8 +298,12 @@ public class EditNoteFragment extends Fragment {
                 //3.有标题没内容
                 alertDialog.dismiss();
                 activeDialog = null;
-                SaveNotesData();
-                requireActivity().finish();
+                //保存完再退出，避免页面先关、写入还没落盘
+                SaveNotesData(() -> {
+                    if (isAdded()) {
+                        requireActivity().finish();
+                    }
+                });
             }
         });
         alertDialog.show();
@@ -277,14 +332,22 @@ public class EditNoteFragment extends Fragment {
                 //创建处删除
                 //某个分组中的笔记删除
                 Notes notes = sharedRepo.getNotesLiveData().getValue();
-                if (notes != null) {
-                    List<Notes> notesList = repo.deleteNotes(notes.getUserId(), notes.getGroupId(), notes.getNotesId());
-                    sharedRepo.setNotesList(notesList);
-                    sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
-                }
                 alertDialog.dismiss();
                 activeDialog = null;
-                requireActivity().finish();
+                if (notes == null) {
+                    requireActivity().finish();
+                    return;
+                }
+                long notesUserId = notes.getUserId();
+                long notesGroupId = notes.getGroupId();
+                long notesId = notes.getNotesId();
+                repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), notesList -> {
+                    sharedRepo.setNotesList(notesList);
+                    sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
+                    if (isAdded()) {
+                        requireActivity().finish();
+                    }
+                });
             }
         });
         alertDialog.show();
@@ -309,9 +372,8 @@ public class EditNoteFragment extends Fragment {
             activeDialog.dismiss();
             activeDialog = null;
         }
-        //连接由 MyRepository 单例统一持有，这里不再关闭：
-        //同一条连接可能正被别的页面使用，关掉会让它们下一次查询直接抛 already-closed
-        repo = null;
+        //连接由 MyRepository 单例统一持有，这里不关闭、也不置空：
+        //同一条连接可能正被别的页面使用，而且后台线程可能还在用它
         binding = null;
     }
 }

@@ -75,10 +75,14 @@ public class MineFragment extends Fragment {
                                     Toast.makeText(requireContext(), getString(R.string.password_empty), Toast.LENGTH_SHORT).show();
                                     return;
                                 }
-                                repo.updatePassword(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId(),
-                                        changedPassword);
-                                Toast.makeText(requireContext(), getString(R.string.password_updated), Toast.LENGTH_SHORT).show();
+                                long userId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
                                 dialog.dismiss();
+                                //改密码同样要算 10000 次摘要，放后台线程
+                                repo.runAsync(() -> repo.updatePassword(userId, changedPassword), () -> {
+                                    if (isAdded()) {
+                                        Toast.makeText(requireContext(), getString(R.string.password_updated), Toast.LENGTH_SHORT).show();
+                                    }
+                                });
                             }
                         })
                         .show();
@@ -113,15 +117,20 @@ public class MineFragment extends Fragment {
                         .setPositiveButton(getString(R.string.confirm), new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                repo.cancelUser(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
-                                viewModel.setChangedUserLiveData(false);
-                                updateSPF();
-                                edit.apply();
-                                Intent intent = new Intent(requireContext(), LoginAndRegisterActivity.class);
-                                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
-                                startActivity(intent);
-                                requireActivity().finish();
+                                long userId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
                                 dialog.dismiss();
+                                repo.runAsync(() -> repo.cancelUser(userId), () -> {
+                                    if (!isAdded()) {
+                                        return;
+                                    }
+                                    viewModel.setChangedUserLiveData(false);
+                                    updateSPF();
+                                    edit.apply();
+                                    Intent intent = new Intent(requireContext(), LoginAndRegisterActivity.class);
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+                                    startActivity(intent);
+                                    requireActivity().finish();
+                                });
                             }
                         })
                         .show();

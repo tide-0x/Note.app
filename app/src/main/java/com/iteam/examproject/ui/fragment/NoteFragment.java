@@ -78,19 +78,23 @@ public class NoteFragment extends Fragment {
             }
         });
 
-        //一开始进入时展示全部笔记
+        //一开始进入时展示当前分组的笔记（查库放 IO 线程，回来后写进 LiveData 驱动列表）
         NoteGroup noteGroup = sharedRepo.getNoteGroupLiveData().getValue();
-        List<Notes> notes = null;
         if (noteGroup != null) {
-            notes = repo.getNotesList(noteGroup.getUserId(), noteGroup.getGroupId());
+            long userId = noteGroup.getUserId();
+            long groupId = noteGroup.getGroupId();
+            repo.runAsync(() -> repo.getNotesList(userId, groupId), sharedRepo::setNotesList);
         }
-        sharedRepo.setNotesList(notes);
 
 
         //观察笔记集合
         sharedRepo.getNotesListLiveData().observe(getViewLifecycleOwner(), new Observer<List<Notes>>() {
             @Override
             public void onChanged(List<Notes> notesList) {
+                //runAsync 失败会回调 null，这里保留列表原样，避免把 null 带进点击回调
+                if (notesList == null) {
+                    return;
+                }
                 noteAdapter.updateNotes(notesList);
 
                 //点击笔记
@@ -157,24 +161,16 @@ public class NoteFragment extends Fragment {
         sortBottomDialogBinding.sortByAsc.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                List<Notes> notes = repo.notesSort(
-                        Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId(),
-                        Objects.requireNonNull(viewModel.getNoteGroupLiveData().getValue()).getGroupId(),
-                        MyRepository.SORT_ASC);
-                viewModel.setNotesListLiveData(notes);
                 dialog.dismiss();
+                sortBy(MyRepository.SORT_ASC);
             }
         });
         //降序
         sortBottomDialogBinding.sortByDes.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                List<Notes> notes = repo.notesSort(
-                        Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId(),
-                        Objects.requireNonNull(viewModel.getNoteGroupLiveData().getValue()).getGroupId(),
-                        MyRepository.SORT_DESC);
-                viewModel.setNotesListLiveData(notes);
                 dialog.dismiss();
+                sortBy(MyRepository.SORT_DESC);
             }
         });
         //取消
@@ -184,6 +180,19 @@ public class NoteFragment extends Fragment {
                 dialog.dismiss();
             }
         });
+    }
+
+    /**
+     * 按编辑时间重新排序当前分组。排序结果写回 LiveData，由观察者刷新列表。
+     */
+    private void sortBy(String sortWay) {
+        NoteGroup noteGroup = viewModel.getNoteGroupLiveData().getValue();
+        if (viewModel.getUserLiveData().getValue() == null || noteGroup == null) {
+            return;
+        }
+        long userId = viewModel.getUserLiveData().getValue().getUserId();
+        long groupId = noteGroup.getGroupId();
+        repo.runAsync(() -> repo.notesSort(userId, groupId, sortWay), viewModel::setNotesListLiveData);
     }
 
     private void searchNotes() {
@@ -206,31 +215,37 @@ public class NoteFragment extends Fragment {
                         if (keyWord.isEmpty()) {
                             Toast.makeText(requireContext(), getString(R.string.input_note_title), Toast.LENGTH_SHORT).show();
                         } else {
-                            List<Notes> notesList = repo.searchResult(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId(), keyWord);
-                            BottomDialogSearchAdapter searchAdapter = new BottomDialogSearchAdapter();
-                            searchAdapter.updateSearchResults(notesList);
-                            layoutManager = new LinearLayoutManager(requireContext());
-                            BottomDialogSearchNotesBinding searchNotesBinding = BottomDialogSearchNotesBinding.inflate(getLayoutInflater());
-                            searchNotesBinding.bottomDialogNotesRv.setAdapter(searchAdapter);
-                            searchNotesBinding.bottomDialogNotesRv.setLayoutManager(layoutManager);
-                            BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
-                            bottomSheetDialog.setContentView(searchNotesBinding.getRoot());
-                            bottomSheetDialog.show();
-                            searchNotesBinding.bottomDialogGroupCancel.setOnClickListener(new View.OnClickListener() {
-                                @Override
-                                public void onClick(View v) {
-                                    bottomSheetDialog.dismiss();
+                            long userId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
+                            //搜索要查库，结果回来再弹列表
+                            repo.runAsync(() -> repo.searchResult(userId, keyWord), notesList -> {
+                                if (!isAdded()) {
+                                    return;
+                                }
+                                BottomDialogSearchAdapter searchAdapter = new BottomDialogSearchAdapter();
+                                searchAdapter.updateSearchResults(notesList);
+                                layoutManager = new LinearLayoutManager(requireContext());
+                                BottomDialogSearchNotesBinding searchNotesBinding = BottomDialogSearchNotesBinding.inflate(getLayoutInflater());
+                                searchNotesBinding.bottomDialogNotesRv.setAdapter(searchAdapter);
+                                searchNotesBinding.bottomDialogNotesRv.setLayoutManager(layoutManager);
+                                BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
+                                bottomSheetDialog.setContentView(searchNotesBinding.getRoot());
+                                bottomSheetDialog.show();
+                                searchNotesBinding.bottomDialogGroupCancel.setOnClickListener(new View.OnClickListener() {
+                                    @Override
+                                    public void onClick(View v) {
+                                        bottomSheetDialog.dismiss();
 
-                                }
-                            });
-                            searchAdapter.setListener(new BottomDialogSearchAdapter.OnBottomDialogSearchClickListener() {
-                                @Override
-                                public void onClick(int position) {
-                                    viewModel.setNotesLiveData(notesList.get(position));
-                                    dialog.dismiss();
-                                    bottomSheetDialog.dismiss();
-                                    startActivity(new Intent(requireContext(), EditNoteActivity.class));
-                                }
+                                    }
+                                });
+                                searchAdapter.setListener(new BottomDialogSearchAdapter.OnBottomDialogSearchClickListener() {
+                                    @Override
+                                    public void onClick(int position) {
+                                        viewModel.setNotesLiveData(notesList.get(position));
+                                        dialog.dismiss();
+                                        bottomSheetDialog.dismiss();
+                                        startActivity(new Intent(requireContext(), EditNoteActivity.class));
+                                    }
+                                });
                             });
                         }
                     }
@@ -246,30 +261,35 @@ public class NoteFragment extends Fragment {
         bottomDialogGroupBinding.bottomDialogGroupAllNotes.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                //获取notes需要groupId为0：不这样做，会导致全部笔记以及在别的分组中的笔记会被重复获取
-                List<Notes> notes = repo.getNotesList(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId(), 0);
-                viewModel.setNoteGroupLiveData(new NoteGroup(viewModel.getUserLiveData().getValue().getUserId(), 0, getString(R.string.all_notes)));
-                viewModel.setNotesListLiveData(notes);
+                //groupId 固定为 0：不这样做，全部笔记和别的分组里的同一篇笔记会被重复获取
+                long allNotesUserId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
+                viewModel.setNoteGroupLiveData(new NoteGroup(allNotesUserId, 0, getString(R.string.all_notes)));
                 dialog.dismiss();
+                repo.runAsync(() -> repo.getNotesList(allNotesUserId, 0), viewModel::setNotesListLiveData);
             }
         });
 
-        //获取当前账号下的分组
-        List<NoteGroup> noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
-        BottomDialogGroupAdapter adapter = new BottomDialogGroupAdapter(noteGroups);
-        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(requireContext());
-        bottomDialogGroupBinding.bottomDialogGroupRv.setAdapter(adapter);
-        bottomDialogGroupBinding.bottomDialogGroupRv.setLayoutManager(linearLayoutManager);
-        adapter.setListener(new BottomDialogGroupAdapter.OnBottomDialogGroupClickListener() {
-            @Override
-            public void onClick(int position) {
-                NoteGroup noteGroup = noteGroups.get(position);
-                //获取当前账号该分组中的笔记
-                List<Notes> notes = repo.getNotesList(noteGroup.getUserId(), noteGroup.getGroupId());
-                viewModel.setNoteGroupLiveData(noteGroup);
-                viewModel.setNotesListLiveData(notes);
-                dialog.dismiss();
+        //获取当前账号下的分组，结果回来再塞进对话框
+        long userId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
+        repo.runAsync(() -> repo.getAllGroups(userId), noteGroups -> {
+            if (!isAdded() || noteGroups == null) {
+                return;
             }
+            BottomDialogGroupAdapter adapter = new BottomDialogGroupAdapter(noteGroups);
+            LinearLayoutManager linearLayoutManager = new LinearLayoutManager(requireContext());
+            bottomDialogGroupBinding.bottomDialogGroupRv.setAdapter(adapter);
+            bottomDialogGroupBinding.bottomDialogGroupRv.setLayoutManager(linearLayoutManager);
+            adapter.setListener(new BottomDialogGroupAdapter.OnBottomDialogGroupClickListener() {
+                @Override
+                public void onClick(int position) {
+                    NoteGroup noteGroup = noteGroups.get(position);
+                    long groupUserId = noteGroup.getUserId();
+                    long groupId = noteGroup.getGroupId();
+                    viewModel.setNoteGroupLiveData(noteGroup);
+                    dialog.dismiss();
+                    repo.runAsync(() -> repo.getNotesList(groupUserId, groupId), viewModel::setNotesListLiveData);
+                }
+            });
         });
 
         //取消
@@ -288,11 +308,6 @@ public class NoteFragment extends Fragment {
         bottomDialogGroupBinding = BottomDialogGroupBinding.inflate(getLayoutInflater());
         bottomSheetDialog.setContentView(bottomDialogGroupBinding.getRoot());
         bottomSheetDialog.show();
-        List<NoteGroup> noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
-        AddToGroupAdapter adapter = new AddToGroupAdapter(noteGroups);
-        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(requireContext());
-        bottomDialogGroupBinding.bottomDialogGroupRv.setAdapter(adapter);
-        bottomDialogGroupBinding.bottomDialogGroupRv.setLayoutManager(linearLayoutManager);
         bottomDialogGroupBinding.bottomDialogGroupTitle.setText(R.string.add_to_group);
         bottomDialogGroupBinding.bottomDialogGroupAllNotes.setVisibility(View.GONE);
         //取消
@@ -303,19 +318,34 @@ public class NoteFragment extends Fragment {
             }
         });
 
-        adapter.setOnItemClickListener(new AddToGroupAdapter.OnItemClickListener() {
-            @Override
-            public void onClick(int position) {
-                NoteGroup noteGroup1 = noteGroups.get(position);
-                notes1.setGroupId(noteGroup1.getGroupId());
-                boolean result = repo.addNotesToGroup(notes1);
-                if (result) {//true
-                    Toast.makeText(requireContext(), getString(R.string.add_success), Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(requireContext(), getString(R.string.group_already_has_note), Toast.LENGTH_SHORT).show();
-                }
-                bottomSheetDialog.dismiss();
+        long userId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
+        repo.runAsync(() -> repo.getAllGroups(userId), noteGroups -> {
+            if (!isAdded() || noteGroups == null) {
+                return;
             }
+            AddToGroupAdapter adapter = new AddToGroupAdapter(noteGroups);
+            LinearLayoutManager linearLayoutManager = new LinearLayoutManager(requireContext());
+            bottomDialogGroupBinding.bottomDialogGroupRv.setAdapter(adapter);
+            bottomDialogGroupBinding.bottomDialogGroupRv.setLayoutManager(linearLayoutManager);
+            adapter.setOnItemClickListener(new AddToGroupAdapter.OnItemClickListener() {
+                @Override
+                public void onClick(int position) {
+                    if (position < 0 || position >= noteGroups.size()) {
+                        return;
+                    }
+                    NoteGroup noteGroup1 = noteGroups.get(position);
+                    notes1.setGroupId(noteGroup1.getGroupId());
+                    bottomSheetDialog.dismiss();
+                    repo.runAsync(() -> repo.addNotesToGroup(notes1), result -> {
+                        if (!isAdded()) {
+                            return;
+                        }
+                        Toast.makeText(requireContext(),
+                                getString(result ? R.string.add_success : R.string.group_already_has_note),
+                                Toast.LENGTH_SHORT).show();
+                    });
+                }
+            });
         });
     }
 

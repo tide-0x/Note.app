@@ -71,22 +71,28 @@ public class LoginAndRegisterFragment extends Fragment {
                     Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
                     return;
                 }
-                User user = repo.login(account, password);
-                if (user == null) {//登录失败
-                    Toast.makeText(requireContext(), getString(R.string.account_or_password_error), Toast.LENGTH_SHORT).show();
-                } else {
-                    User liveDataUser = viewModel.getUserLiveData().getValue();
-                    if (liveDataUser != null &&
-                            changedUser &&
-                            liveDataUser.getUserId() == user.getUserId()) {//判断是否切换账号 true
-                        Toast.makeText(requireContext(), getString(R.string.account_is_current), Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(requireContext(), getString(R.string.login_success), Toast.LENGTH_SHORT).show();
-                        saveData(user);
-                        toNoteFragment();
+                final String acc = account;
+                final String pwd = password;
+                //校验密码要做 10000 次 SHA-256，放主线程会明显卡顿，交给 IO 线程
+                repo.runAsync(() -> repo.login(acc, pwd), user -> {
+                    if (!isAdded()) {
+                        return;
                     }
-
-                }
+                    if (user == null) {//登录失败
+                        Toast.makeText(requireContext(), getString(R.string.account_or_password_error), Toast.LENGTH_SHORT).show();
+                    } else {
+                        User liveDataUser = viewModel.getUserLiveData().getValue();
+                        if (liveDataUser != null &&
+                                changedUser &&
+                                liveDataUser.getUserId() == user.getUserId()) {//判断是否切换账号 true
+                            Toast.makeText(requireContext(), getString(R.string.account_is_current), Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(requireContext(), getString(R.string.login_success), Toast.LENGTH_SHORT).show();
+                            saveData(user);
+                            toNoteFragment();
+                        }
+                    }
+                });
             }
         });
 
@@ -101,14 +107,21 @@ public class LoginAndRegisterFragment extends Fragment {
                     Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
                     return;
                 }
-                User user = repo.register(account, password);
-                if (user == null) {
-                    Toast.makeText(requireContext(), getString(R.string.account_exists), Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(requireContext(), getString(R.string.register_success), Toast.LENGTH_SHORT).show();
-                    saveData(user);
-                    toNoteFragment();
-                }
+                final String acc = account;
+                final String pwd = password;
+                //注册同样要算摘要，交给 IO 线程
+                repo.runAsync(() -> repo.register(acc, pwd), user -> {
+                    if (!isAdded()) {
+                        return;
+                    }
+                    if (user == null) {
+                        Toast.makeText(requireContext(), getString(R.string.account_exists), Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(requireContext(), getString(R.string.register_success), Toast.LENGTH_SHORT).show();
+                        saveData(user);
+                        toNoteFragment();
+                    }
+                });
             }
         });
 

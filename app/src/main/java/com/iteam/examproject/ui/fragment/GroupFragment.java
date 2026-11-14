@@ -15,14 +15,13 @@ import com.iteam.examproject.R;
 import com.iteam.examproject.adapter.GroupManagementAdapter;
 import com.iteam.examproject.databinding.FragmentGroupBinding;
 import com.iteam.examproject.entity.NoteGroup;
-import com.iteam.examproject.entity.Notes;
 import com.iteam.examproject.entity.User;
 import com.iteam.examproject.repo.MyRepository;
 import com.iteam.examproject.utils.RvDecorationUtil;
 import com.iteam.examproject.viewmodel.MyViewModel;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 public class GroupFragment extends Fragment {
     private static final String TAG = "GroupFragment";
@@ -53,13 +52,17 @@ public class GroupFragment extends Fragment {
                 } else {
                     User user = viewModel.getUserLiveData().getValue();
                     if (user != null) {
-                        NoteGroup noteGroup = repo.createGroup(user.getUserId(), groupName);
-                        if (noteGroup != null) {
-                            adapter.addNoteGroup(noteGroup);
-                            Toast.makeText(requireContext(), getString(R.string.add_success), Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(requireContext(), getString(R.string.group_name_exists), Toast.LENGTH_SHORT).show();
-                        }
+                        repo.runAsync(() -> repo.createGroup(user.getUserId(), groupName), noteGroup -> {
+                            if (!isAdded()) {
+                                return;
+                            }
+                            if (noteGroup != null) {
+                                adapter.addNoteGroup(noteGroup);
+                                Toast.makeText(requireContext(), getString(R.string.add_success), Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(requireContext(), getString(R.string.group_name_exists), Toast.LENGTH_SHORT).show();
+                            }
+                        });
                     }
                 }
                 binding.addGroupEdit.setText("");
@@ -70,49 +73,75 @@ public class GroupFragment extends Fragment {
         adapter.setGarbageCanIvClickListener(new GroupManagementAdapter.GarbageCanIvClickListener() {
             @Override
             public void onClick(int position) {
-                NoteGroup noteGroup = noteGroups.get(position);
-                repo.deleteGroup(noteGroup);
-                NoteGroup viewModelNoteGroup = viewModel.getNoteGroupLiveData().getValue();
-                if (viewModelNoteGroup != null) {
-                    if (noteGroup.getUserId() == viewModelNoteGroup.getUserId() &&
-                            noteGroup.getGroupId() == viewModelNoteGroup.getGroupId()) {
-                        viewModel.setNoteGroupLiveData(new NoteGroup(noteGroup.getUserId(), 0, getString(R.string.all_notes)));
-                        List<Notes> notesList = repo.getNotesList(viewModelNoteGroup.getUserId(), 0);
-                        viewModel.setNotesListLiveData(notesList);
-                    }
+                //从适配器取：新增分组后外部的 noteGroups 可能还是旧的，按 position 索引会越界
+                NoteGroup noteGroup = adapter.getItem(position);
+                if (noteGroup == null) {
+                    return;
                 }
-                adapter.removeNoteGroup(position);
+                repo.runAsync(() -> repo.deleteGroup(noteGroup), () -> {
+                    if (!isAdded()) {
+                        return;
+                    }
+                    NoteGroup viewModelNoteGroup = viewModel.getNoteGroupLiveData().getValue();
+                    boolean deletingCurrent = viewModelNoteGroup != null
+                            && noteGroup.getUserId() == viewModelNoteGroup.getUserId()
+                            && noteGroup.getGroupId() == viewModelNoteGroup.getGroupId();
+                    //按对象重新定位：删除是异步的，回来时列表可能已经变了，用旧下标会删错行
+                    int index = adapter.indexOf(noteGroup);
+                    if (index >= 0) {
+                        adapter.removeNoteGroup(index);
+                    }
+                    if (deletingCurrent) {
+                        //删掉的是当前正在看的分组，退回「全部笔记」
+                        viewModel.setNoteGroupLiveData(new NoteGroup(noteGroup.getUserId(), 0, getString(R.string.all_notes)));
+                        repo.runAsync(() -> repo.getNotesList(noteGroup.getUserId(), 0),
+                                viewModel::setNotesListLiveData);
+                    }
+                });
             }
         });
 
         //确认
         adapter.setConfirmIvClickListener(new GroupManagementAdapter.ConfirmIvClickListener() {
             @Override
-            public boolean onClick(int position, String editedGroupName) {
+            public void onConfirm(int position, String editedGroupName, GroupManagementAdapter.ResultCallback done) {
                 String groupName = editedGroupName.trim();
+                NoteGroup noteGroup = adapter.getItem(position);
+                if (noteGroup == null) {
+                    done.onResult(true);
+                    return;
+                }
                 if (groupName.isEmpty()) {
                     Toast.makeText(requireContext(), getString(R.string.group_name_empty), Toast.LENGTH_SHORT).show();
-                    noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
-                    adapter.updateNoteGroupList(noteGroups);
-                    return true;
+                    done.onResult(true);
+                    return;
                 }
-
-                NoteGroup noteGroup = noteGroups.get(position);
                 //名字没变，直接当成功处理，不必再去数据库查重
                 if (groupName.equals(noteGroup.getGroupName())) {
-                    return false;
+                    done.onResult(false);
+                    return;
                 }
 
-                noteGroup.setGroupName(groupName);
-                boolean existed = repo.updateGroupName(noteGroup);
-                if (existed) {
-                    Toast.makeText(requireContext(), getString(R.string.group_name_exists), Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(requireContext(), getString(R.string.update_success), Toast.LENGTH_SHORT).show();
-                }
-                noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
-                adapter.updateNoteGroupList(noteGroups);
-                return existed;
+                long userId = noteGroup.getUserId();
+                //构造新对象去改名，不直接改列表里的那个：改名失败时它还得保持原名
+                NoteGroup target = new NoteGroup(noteGroup.getUserId(), noteGroup.getGroupId(), groupName);
+                repo.runAsync(() -> repo.updateGroupName(target), existed -> {
+                    if (!isAdded()) {
+                        return;
+                    }
+                    Toast.makeText(requireContext(),
+                            getString(existed ? R.string.group_name_exists : R.string.update_success),
+                            Toast.LENGTH_SHORT).show();
+                    done.onResult(existed);
+                    //不管成功失败都重新拉一次，保证界面和库里一致
+                    repo.runAsync(() -> repo.getAllGroups(userId), groups -> {
+                        if (!isAdded() || groups == null) {
+                            return;
+                        }
+                        noteGroups = groups;
+                        adapter.updateNoteGroupList(groups);
+                    });
+                });
             }
         });
 
@@ -123,9 +152,9 @@ public class GroupFragment extends Fragment {
     private void init() {
         binding = FragmentGroupBinding.inflate(getLayoutInflater());
         viewModel = new ViewModelProvider(this).get(MyViewModel.class);
-        //共享仓储：全进程只有一条数据库连接，用完不需要关闭
         repo = MyRepository.getInstance(requireContext());
-        noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
+        //先把空列表交给适配器，查库结果回来再填，主线程不阻塞
+        noteGroups = new ArrayList<>();
         adapter = new GroupManagementAdapter(noteGroups);
         binding.groupFragmentRv.setAdapter(adapter);
         binding.groupFragmentRv.addItemDecoration(new RvDecorationUtil(8F));
@@ -133,6 +162,17 @@ public class GroupFragment extends Fragment {
         binding.groupFragmentRv.setLayoutManager(linearLayoutManager);
         // 使软键盘不调整窗口（键盘会覆盖底部导航）[实际发现，写这里没用，注册文件有用]
         //requireActivity().getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
+
+        User user = viewModel.getUserLiveData().getValue();
+        if (user != null) {
+            repo.runAsync(() -> repo.getAllGroups(user.getUserId()), groups -> {
+                if (!isAdded() || groups == null) {
+                    return;
+                }
+                noteGroups = groups;
+                adapter.updateNoteGroupList(groups);
+            });
+        }
     }
 
 

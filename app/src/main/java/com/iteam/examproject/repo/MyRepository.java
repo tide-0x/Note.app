@@ -4,6 +4,9 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 
 import com.iteam.examproject.db.MyDatabaseHelper;
 import com.iteam.examproject.entity.NoteGroup;
@@ -13,22 +16,43 @@ import com.iteam.examproject.utils.PasswordUtil;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 所有数据库操作的入口。
  * 全进程只有一个实例、一条连接：SQLite 连接是进程级资源，反复开关没有收益，
  * 反而会连带关掉其他持有者的连接。这里用单例把它收成一份，谁用完都不用管关闭。
  * 每个方法各自创建 ContentValues，不共享可变状态，避免上一次调用失败后脏值残留到下一次。
+ *
+ * <p>线程模型：下面这些同步方法会在<b>调用线程</b>上直接执行 SQL，界面层请一律用
+ * {@link #runAsync(Callable, Callback)} 包一层，不要在主线程直接调。
+ * 单线程执行器保证所有数据库操作串行，天然避免并发写，也保证「先写后读」的顺序。
  */
 public class MyRepository {
+    private static final String TAG = "MyRepository";
     private static final String DATABASE_NAME = "database.db";
     private static final int DATABASE_VERSION = 2;
     private static volatile MyRepository instance;
+
+    /** 所有数据库操作串行执行在这个线程上 */
+    private static final ExecutorService IO = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "note-db");
+        thread.setPriority(Thread.NORM_PRIORITY - 1);
+        return thread;
+    });
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
 
     private final MyDatabaseHelper dbHelper;
     private SQLiteDatabase database;
     public static final String SORT_ASC = "asc";
     public static final String SORT_DESC = "desc";
+
+    /** 异步结果回调，保证在主线程执行 */
+    public interface Callback<T> {
+        void onResult(T result);
+    }
 
     /**
      * 获取全局唯一的仓储实例。
@@ -58,6 +82,39 @@ public class MyRepository {
             database = dbHelper.getWritableDatabase();
         }
         return database;
+    }
+
+    /**
+     * 在 IO 线程执行数据库操作，结果切回主线程交给 callback。
+     * 操作抛异常时不会崩应用：记一条日志，回调 null。
+     */
+    public <T> void runAsync(Callable<T> work, Callback<T> callback) {
+        IO.execute(() -> {
+            T result = null;
+            try {
+                result = work.call();
+            } catch (Exception e) {
+                Log.e(TAG, "数据库操作失败", e);
+            }
+            final T value = result;
+            MAIN.post(() -> {
+                if (callback != null) {
+                    callback.onResult(value);
+                }
+            });
+        });
+    }
+
+    /** 无返回值的写操作版本，完成后在主线程执行 onComplete */
+    public void runAsync(Runnable work, Runnable onComplete) {
+        runAsync(() -> {
+            work.run();
+            return null;
+        }, result -> {
+            if (onComplete != null) {
+                onComplete.run();
+            }
+        });
     }
 
     //判断是否存在
