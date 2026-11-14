@@ -1,18 +1,19 @@
 package com.iteam.examproject.entity;
 
+/**
+ * 登录用户信息。
+ * 注意：这里不再保存密码。密码只以加盐摘要的形式存在数据库里，见 PasswordUtil。
+ */
 public class User {
     private long userId;
     private String account;
-    private String password;
-    //用来判断是否切换账户
-    //private boolean currentAccount=true;
 
-    public User(){}
+    public User() {
+    }
 
-    public User(long userId, String account, String password) {
+    public User(long userId, String account) {
         this.userId = userId;
         this.account = account;
-        this.password = password;
     }
 
     public long getUserId() {
@@ -30,20 +31,4 @@ public class User {
     public void setAccount(String account) {
         this.account = account;
     }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    /*public boolean isCurrentAccount() {
-        return currentAccount;
-    }
-
-    public void setCurrentAccount(boolean currentAccount) {
-        this.currentAccount = currentAccount;
-    }*/
 }

@@ -16,7 +16,7 @@ import java.util.List;
 public class SharedDataRepository {
     private static final SharedDataRepository INSTANCE = new SharedDataRepository();
 
-    private final MutableLiveData<User> userLiveData = new MutableLiveData<>(new User(-1, "", ""));
+    private final MutableLiveData<User> userLiveData = new MutableLiveData<>(new User(-1, ""));
     private final MutableLiveData<NoteGroup> noteGroupLiveData = new MutableLiveData<>(new NoteGroup(-1, 0, "全部笔记"));
     private final MutableLiveData<List<Notes>> notesListLiveData = new MutableLiveData<>(new ArrayList<>());
     private final MutableLiveData<Notes> notesLiveData = new MutableLiveData<>(new Notes(-1, -1, -1, "", "", -1));

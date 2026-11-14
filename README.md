@@ -54,9 +54,17 @@ app/src/main/java/com/iteam/examproject/
 
 > release 构建需要在 `app/build.gradle.kts` 中自行配置签名信息，仓库内不含 keystore。
 
+## 密码存储
+
+`table_users.password` 存的是加盐摘要，格式 `sha256$迭代次数$盐(Base64)$摘要(Base64)`，每个密码单独随机盐、10000 次 SHA-256 迭代，实现见 `utils/PasswordUtil`。
+早期版本写入的明文密码仍可登录，登录成功时自动升级为摘要；`SharedPreferences` 中不再保存密码。
+
 ## 已知问题
 
-见提交历史与 issue 列表，主要包括：密码以明文存储、`onUpgrade` 未实现迁移、数据库表缺少索引、部分界面文案硬编码在 Java 中。
+- `MyRepository` 用成员变量 `ContentValues` 复用，异常时可能残留脏值
+- 界面中文文案大量硬编码在 Java 中，未进 `strings.xml`
+- 列表统一 `notifyDataSetChanged()`，未用 `DiffUtil`
+- 每个 Fragment 各自持有 `MyRepository` 与数据库连接，仅 `EditNoteFragment` 主动关闭
 
 ## License
 

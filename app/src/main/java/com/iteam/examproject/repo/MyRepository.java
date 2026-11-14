@@ -10,6 +10,7 @@ import com.iteam.examproject.db.MyDatabaseHelper;
 import com.iteam.examproject.entity.NoteGroup;
 import com.iteam.examproject.entity.Notes;
 import com.iteam.examproject.entity.User;
+import com.iteam.examproject.utils.PasswordUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -81,13 +82,15 @@ public class MyRepository {
             return null;
         } else {//账号不存在，存入数据库并返回user信息
             values.put(MyDatabaseHelper.ACCOUNT, account);
-            values.put(MyDatabaseHelper.PASSWORD, password);
+            //只存摘要，不存明文
+            values.put(MyDatabaseHelper.PASSWORD, PasswordUtil.hash(password));
             //insert into table_users (account password) values (account,password)
             long userId = database.insert(MyDatabaseHelper.TABLE_USERS,
                     null,
                     values);
             values.clear();
-            return new User(userId, account, password);
+            //密码不再回传给上层，内存里也不保留明文
+            return new User(userId, account);
         }
     }
 
@@ -95,26 +98,31 @@ public class MyRepository {
     public User login(String account, String password) {
         Cursor cursor = null;
         try {
-            //select * form table_users where account=account and password=password
+            //select * from table_users where account=account
+            //密码是加盐摘要，不能再用 password=? 直接比对，取出来自己校验
             cursor = database.query(MyDatabaseHelper.TABLE_USERS,
                     null,
-                    MyDatabaseHelper.ACCOUNT + "=? and " + MyDatabaseHelper.PASSWORD + "=?",
-                    new String[]{account, password},
+                    MyDatabaseHelper.ACCOUNT + "=?",
+                    new String[]{account},
                     null, null, null);
-            if (cursor.moveToFirst()) {
-                User user = new User();
-                int index = cursor.getColumnIndex(MyDatabaseHelper.USER_ID);
-                long userId = cursor.getLong(index);
-                user.setUserId(userId);
-                index = cursor.getColumnIndex(MyDatabaseHelper.ACCOUNT);
-                String acc = cursor.getString(index);
-                user.setAccount(acc);
-                index = cursor.getColumnIndex(MyDatabaseHelper.PASSWORD);
-                String pwd = cursor.getString(index);
-                user.setPassword(pwd);
-                return user;
+            if (!cursor.moveToFirst()) {
+                return null;
             }
-            return null;
+            int index = cursor.getColumnIndex(MyDatabaseHelper.USER_ID);
+            long userId = cursor.getLong(index);
+            index = cursor.getColumnIndex(MyDatabaseHelper.ACCOUNT);
+            String acc = cursor.getString(index);
+            index = cursor.getColumnIndex(MyDatabaseHelper.PASSWORD);
+            String stored = cursor.getString(index);
+
+            if (!PasswordUtil.verify(password, stored)) {
+                return null;
+            }
+            if (!PasswordUtil.isHashed(stored)) {
+                //旧数据是明文，登录成功后顺手升级成摘要
+                updatePassword(userId, password);
+            }
+            return new User(userId, acc);
         } finally {
             if (cursor != null) {
                 cursor.close();
@@ -124,7 +132,7 @@ public class MyRepository {
 
     //修改账号密码
     public void updatePassword(long userId, String changedPassword) {
-        values.put(MyDatabaseHelper.PASSWORD, changedPassword);
+        values.put(MyDatabaseHelper.PASSWORD, PasswordUtil.hash(changedPassword));
         //update table_users
         //set password values changedPassword
         //where userId=userId

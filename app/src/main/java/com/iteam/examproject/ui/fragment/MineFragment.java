@@ -76,10 +76,6 @@ public class MineFragment extends Fragment {
                                 }
                                 repo.updatePassword(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId(),
                                         changedPassword);
-                                User user = viewModel.getUserLiveData().getValue();
-                                user.setPassword(changedPassword);
-                                viewModel.setUserLiveData(user);
-                                //ToastUtil.showToast(requireContext(),"密码修改成功");
                                 Toast.makeText(requireContext(), "密码修改成功", Toast.LENGTH_SHORT).show();
                                 dialog.dismiss();
                             }
@@ -156,7 +152,8 @@ public class MineFragment extends Fragment {
     private void updateSPF() {
         edit.putLong("userId", -1);
         edit.putString("account", "");
-        edit.putString("password", "");
+        //退出/注销时把旧版本残留的明文密码一并清掉
+        edit.remove("password");
     }
 
     private void init() {

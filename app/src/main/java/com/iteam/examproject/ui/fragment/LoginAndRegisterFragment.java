@@ -53,8 +53,8 @@ public class LoginAndRegisterFragment extends Fragment {
         }
         if (userId != -1 && !changedUser) {//本地有数据且没有切换账号
             String account = spf.getString("account", "");
-            String password = spf.getString("password", "");
-            viewModel.setUserLiveData(new User(userId, account, password));
+            //记住登录态只需要 userId 和 account，密码不再落盘
+            viewModel.setUserLiveData(new User(userId, account));
             viewModel.setNoteGroupLiveData(new NoteGroup(userId,0,"全部笔记"));
             viewModel.setChangedUserLiveData(false);
             toNoteFragment();
@@ -128,7 +128,8 @@ public class LoginAndRegisterFragment extends Fragment {
         viewModel.setNoteGroupLiveData(new NoteGroup(user.getUserId(),0,"全部笔记"));
         edit.putLong("userId", user.getUserId());
         edit.putString("account", user.getAccount());
-        edit.putString("password", user.getPassword());
+        //清掉旧版本曾经写进 SharedPreferences 的明文密码
+        edit.remove("password");
         viewModel.setChangedUserLiveData(false);
         edit.apply();
     }
