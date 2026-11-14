@@ -203,19 +203,19 @@ public class EditNoteFragment extends Fragment {
      */
     private void SaveNotesData(Runnable onSaved) {
         long editedTime = System.currentTimeMillis();
-        //在全部笔记中还是在其他分组中
-        //NoteFragment中viewmodel数据进行了更新
-        Notes notes = sharedRepo.getNotesLiveData().getValue();
-        if (notes == null) {
+        //notesLiveData 里存的正是列表点击时传进来的那个对象，NoteAdapter 的列表同样持有它。
+        //这里必须复制一份再改：直接在原对象上 set 会「悄悄改掉适配器的数据」，
+        //保存后 DiffUtil 对比新旧列表看到内容相同，就不会重绑那一行，
+        //结果数据库和内存都是新标题，界面上却一直显示旧标题。
+        Notes source = sharedRepo.getNotesLiveData().getValue();
+        if (source == null) {
             if (onSaved != null) {
                 onSaved.run();
             }
             return;
         }
-        notes.setEditTime(editedTime);
-        notes.setTitle(title);
-        notes.setContent(content);
-
+        final Notes notes = new Notes(source.getUserId(), source.getGroupId(), source.getNotesId(),
+                title, content, editedTime);
         final boolean isNew = notes.getNotesId() == -1;
         final long userId = notes.getUserId();
         final long groupId = notes.getGroupId();
@@ -235,8 +235,11 @@ public class EditNoteFragment extends Fragment {
                 return;
             }
             if (result.notesId > 0) {
+                //新建成功：行号记在这份副本上，本页再点保存就走更新，不会重复建一条
                 notes.setNotesId(result.notesId);
             }
+            //用这份独立副本替换 notesLiveData 的引用，之后的保存/返回对话框读到的都不再是列表里的对象
+            sharedRepo.setNotes(notes);
             //刷新当前分组的笔记列表并通知仓库观察者
             sharedRepo.setNotesList(result.notes);
             if (onSaved != null) {

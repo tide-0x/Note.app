@@ -303,7 +303,14 @@ public class NoteFragment extends Fragment {
     }
 
     private void notesLongClickListener(int position, List<Notes> notes) {
-        Notes notes1 = notes.get(position);
+        if (position < 0 || position >= notes.size()) {
+            return;
+        }
+        //复制一份再改 groupId：这个对象同时被 NoteAdapter 的列表持有，
+        //直接 set 会污染列表数据，让 DiffUtil 之后比不出差异
+        Notes source = notes.get(position);
+        final Notes note = new Notes(source.getUserId(), source.getGroupId(), source.getNotesId(),
+                source.getTitle(), source.getContent(), source.getEditTime());
         BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
         bottomDialogGroupBinding = BottomDialogGroupBinding.inflate(getLayoutInflater());
         bottomSheetDialog.setContentView(bottomDialogGroupBinding.getRoot());
@@ -334,9 +341,9 @@ public class NoteFragment extends Fragment {
                         return;
                     }
                     NoteGroup noteGroup1 = noteGroups.get(position);
-                    notes1.setGroupId(noteGroup1.getGroupId());
+                    note.setGroupId(noteGroup1.getGroupId());
                     bottomSheetDialog.dismiss();
-                    repo.runAsync(() -> repo.addNotesToGroup(notes1), result -> {
+                    repo.runAsync(() -> repo.addNotesToGroup(note), result -> {
                         if (!isAdded()) {
                             return;
                         }

@@ -26,8 +26,20 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.ViewHolder> {
 
     public NoteAdapter(List<Notes> notes) {
         if (notes != null) {
-            this.notes.addAll(notes);
+            for (Notes item : notes) {
+                this.notes.add(copyOf(item));
+            }
         }
+    }
+
+    /**
+     * 逐字段复制。适配器持有的必须是自己的独立数据：
+     * 外部（比如编辑页）直接改列表传出去的对象时，这里不会被波及，
+     * DiffUtil 才能正常比出新旧差异、刷新那一行。
+     */
+    private static Notes copyOf(Notes item) {
+        return new Notes(item.getUserId(), item.getGroupId(), item.getNotesId(),
+                item.getTitle(), item.getContent(), item.getEditTime());
     }
 
     /**
@@ -39,7 +51,10 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.ViewHolder> {
             return;
         }
         final List<Notes> oldNotes = new ArrayList<>(notes);
-        final List<Notes> target = new ArrayList<>(newNotes);
+        final List<Notes> target = new ArrayList<>();
+        for (Notes item : newNotes) {
+            target.add(copyOf(item));
+        }
         DiffUtil.DiffResult result = DiffUtil.calculateDiff(new DiffUtil.Callback() {
             @Override
             public int getOldListSize() {
