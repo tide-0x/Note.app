@@ -16,7 +16,7 @@ import java.util.List;
 
 public class MyRepository {
     private static final String DATABASE_NAME = "database.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
     private static final String TAG = "MyRepository";
     private MyDatabaseHelper dbHelper;
     private SQLiteDatabase database;
