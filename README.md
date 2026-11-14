@@ -59,9 +59,15 @@ app/src/main/java/com/iteam/examproject/
 `table_users.password` 存的是加盐摘要，格式 `sha256$迭代次数$盐(Base64)$摘要(Base64)`，每个密码单独随机盐、10000 次 SHA-256 迭代，实现见 `utils/PasswordUtil`。
 早期版本写入的明文密码仍可登录，登录成功时自动升级为摘要；`SharedPreferences` 中不再保存密码。
 
+## 数据流与线程
+
+- `MyRepository` 是单例，全进程只有一条 SQLite 连接，生命周期跟随进程，业务代码不需要开关连接。
+- `SharedDataRepository` 的写入统一经过 `setSafely()`：主线程用 `setValue()` 同步生效，子线程自动降级为 `postValue()`。
+  因此**子线程写完不能紧接着 `getValue()` 读**，读要靠 `observe` 回调；主线程的「先写后读」不受影响。
+- 目前所有数据库读写仍在主线程，后续若改为异步，只需关注上面这条约定。
+
 ## 已知问题
 
-- `SharedDataRepository` 用 `setValue()` 更新，只能在主线程调用
 - 界面逻辑层仍用匿名内部类而非 lambda，`ContentActivity` 的 Fragment 切换为手写实现
 - 数据库读写仍在主线程执行，笔记量大时可能卡顿
 

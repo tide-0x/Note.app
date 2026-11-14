@@ -37,14 +37,6 @@ public class MyViewModel extends ViewModel {
         return repository.getNotesListLiveData();
     }
 
-    /*public void setNoteGroupListLiveData(List<NoteGroup> noteGroupList){
-        noteGroupListLiveData.setValue(noteGroupList);
-    }*/
-
-    /*public LiveData<List<NoteGroup>> getNoteGroupListLiveData(){
-        return noteGroupListLiveData;
-    }*/
-
     public void setNotesLiveData(Notes notes){
         repository.setNotes(notes);
     }
