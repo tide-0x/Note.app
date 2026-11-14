@@ -130,8 +130,8 @@ public class LoginAndRegisterFragment extends Fragment {
     private void init() {
         binding = FragmentLoginAndRegisterBinding.inflate(getLayoutInflater());
         viewModel = new ViewModelProvider(this).get(MyViewModel.class);
-        repo = new MyRepository(requireContext());
-        repo.open();
+        //共享仓储：全进程只有一条数据库连接，用完不需要关闭
+        repo = MyRepository.getInstance(requireContext());
         spf = requireActivity().getSharedPreferences("currentUser", MODE_PRIVATE);
         edit = spf.edit();
     }

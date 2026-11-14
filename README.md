@@ -20,7 +20,7 @@
 | compileSdk / targetSdk / minSdk | 35 / 35 / 21 |
 | UI | View + Fragment + ViewBinding，Material Components，单 Activity + 底部导航 |
 | 状态 | ViewModel + LiveData（`SharedDataRepository` 单例共享数据） |
-| 存储 | SQLite（`SQLiteOpenHelper`，库名 `database.db`） |
+| 存储 | SQLite（`SQLiteOpenHelper`，库名 `database.db`，连接由 `MyRepository` 单例统一持有） |
 
 ## 目录结构
 
@@ -61,9 +61,9 @@ app/src/main/java/com/iteam/examproject/
 
 ## 已知问题
 
-- 每个 Fragment 各自持有 `MyRepository` 与数据库连接，仅 `EditNoteFragment` 主动关闭
 - `SharedDataRepository` 用 `setValue()` 更新，只能在主线程调用
 - 界面逻辑层仍用匿名内部类而非 lambda，`ContentActivity` 的 Fragment 切换为手写实现
+- 数据库读写仍在主线程执行，笔记量大时可能卡顿
 
 ## License
 

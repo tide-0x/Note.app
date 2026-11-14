@@ -16,26 +16,48 @@ import java.util.List;
 
 /**
  * 所有数据库操作的入口。
+ * 全进程只有一个实例、一条连接：SQLite 连接是进程级资源，反复开关没有收益，
+ * 反而会连带关掉其他持有者的连接。这里用单例把它收成一份，谁用完都不用管关闭。
  * 每个方法各自创建 ContentValues，不共享可变状态，避免上一次调用失败后脏值残留到下一次。
  */
 public class MyRepository {
     private static final String DATABASE_NAME = "database.db";
     private static final int DATABASE_VERSION = 2;
-    private MyDatabaseHelper dbHelper;
+    private static volatile MyRepository instance;
+
+    private final MyDatabaseHelper dbHelper;
     private SQLiteDatabase database;
     public static final String SORT_ASC = "asc";
     public static final String SORT_DESC = "desc";
 
-    public MyRepository(Context context) {
+    /**
+     * 获取全局唯一的仓储实例。
+     * 用 applicationContext 构造，避免持有 Activity/Fragment 造成内存泄漏。
+     */
+    public static MyRepository getInstance(Context context) {
+        if (instance == null) {
+            synchronized (MyRepository.class) {
+                if (instance == null) {
+                    instance = new MyRepository(context.getApplicationContext());
+                }
+            }
+        }
+        return instance;
+    }
+
+    private MyRepository(Context context) {
         dbHelper = new MyDatabaseHelper(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
 
-    public void open() {
-        database = dbHelper.getWritableDatabase();
-    }
-
-    public void close() {
-        database.close();
+    /**
+     * 取数据库连接：第一次调用时打开，之后一直复用。
+     * 如果连接因为意外被关闭（isOpen 为 false），这里会自动重开，不会把异常抛给调用方。
+     */
+    private synchronized SQLiteDatabase db() {
+        if (database == null || !database.isOpen()) {
+            database = dbHelper.getWritableDatabase();
+        }
+        return database;
     }
 
     //判断是否存在
@@ -43,7 +65,7 @@ public class MyRepository {
         //select count(*) as count from tableName where selection
         Cursor cursor = null;
         try {
-            cursor = database.query(tableName,
+            cursor = db().query(tableName,
                     new String[]{"count(*) as count"},
                     selection,
                     selectionArgs,
@@ -74,7 +96,7 @@ public class MyRepository {
         values.put(MyDatabaseHelper.ACCOUNT, account);
         //只存摘要，不存明文
         values.put(MyDatabaseHelper.PASSWORD, PasswordUtil.hash(password));
-        long userId = database.insert(MyDatabaseHelper.TABLE_USERS, null, values);
+        long userId = db().insert(MyDatabaseHelper.TABLE_USERS, null, values);
         //密码不再回传给上层，内存里也不保留明文
         return new User(userId, account);
     }
@@ -85,7 +107,7 @@ public class MyRepository {
         try {
             //select * from table_users where account=account
             //密码是加盐摘要，不能再用 password=? 直接比对，取出来自己校验
-            cursor = database.query(MyDatabaseHelper.TABLE_USERS,
+            cursor = db().query(MyDatabaseHelper.TABLE_USERS,
                     null,
                     MyDatabaseHelper.ACCOUNT + "=?",
                     new String[]{account},
@@ -120,7 +142,7 @@ public class MyRepository {
         ContentValues values = new ContentValues();
         values.put(MyDatabaseHelper.PASSWORD, PasswordUtil.hash(changedPassword));
         //update table_users set password=changedPassword where userId=userId
-        database.update(MyDatabaseHelper.TABLE_USERS,
+        db().update(MyDatabaseHelper.TABLE_USERS,
                 values,
                 MyDatabaseHelper.USER_ID + "=?",
                 new String[]{String.valueOf(userId)});
@@ -129,15 +151,15 @@ public class MyRepository {
     //注销账号
     public void cancelUser(long userId) {
         //删除用户表中的
-        database.delete(MyDatabaseHelper.TABLE_USERS,
+        db().delete(MyDatabaseHelper.TABLE_USERS,
                 MyDatabaseHelper.USER_ID + "=?",
                 new String[]{String.valueOf(userId)});
         //删除分组表中的
-        database.delete(MyDatabaseHelper.TABLE_GROUPS,
+        db().delete(MyDatabaseHelper.TABLE_GROUPS,
                 MyDatabaseHelper.USER_ID + "=?",
                 new String[]{String.valueOf(userId)});
         //删除笔记表中的
-        database.delete(MyDatabaseHelper.TABLE_NOTES,
+        db().delete(MyDatabaseHelper.TABLE_NOTES,
                 MyDatabaseHelper.USER_ID + "=?",
                 new String[]{String.valueOf(userId)});
     }
@@ -149,17 +171,17 @@ public class MyRepository {
     //2.从某个分组中添加到某个分组
     public long createNote(long userId, long groupId, String title, String content, long editedTime) {
         //insert into table_notes (userId,groupId,title,content,editedTime) values (...)
-        long notesId = database.insert(MyDatabaseHelper.TABLE_NOTES,
+        long notesId = db().insert(MyDatabaseHelper.TABLE_NOTES,
                 null, noteValues(userId, groupId, title, content, editedTime));
         if (groupId != 0) {
             //在别的分组中添加笔记，则给全部笔记中备份groupId=0
-            database.insert(MyDatabaseHelper.TABLE_NOTES,
+            db().insert(MyDatabaseHelper.TABLE_NOTES,
                     null, noteValues(userId, 0, title, content, editedTime));
         }
         //把插入得到的行号回填成 notesId，让同一笔记的多行记录共用一个 id
         ContentValues update = new ContentValues();
         update.put(MyDatabaseHelper.NOTES_ID, notesId);
-        database.update(MyDatabaseHelper.TABLE_NOTES,
+        db().update(MyDatabaseHelper.TABLE_NOTES,
                 update,
                 MyDatabaseHelper.USER_ID + "=? and (" + MyDatabaseHelper.GROUP_ID + "=? or " + MyDatabaseHelper.GROUP_ID + "=?) and " + MyDatabaseHelper.EDIT_TIME + "=?",
                 new String[]{String.valueOf(userId), String.valueOf(groupId), String.valueOf(0), String.valueOf(editedTime)});
@@ -197,7 +219,7 @@ public class MyRepository {
         values.put(MyDatabaseHelper.CONTENT, notes.getContent());
         values.put(MyDatabaseHelper.EDIT_TIME, notes.getEditTime());
         //insert into table_notes values userId,groupId,notesId,title,content,editedTime
-        database.insert(MyDatabaseHelper.TABLE_NOTES, null, values);
+        db().insert(MyDatabaseHelper.TABLE_NOTES, null, values);
         return true;
     }
 
@@ -209,7 +231,7 @@ public class MyRepository {
         values.put(MyDatabaseHelper.CONTENT, notes.getContent());
         values.put(MyDatabaseHelper.EDIT_TIME, notes.getEditTime());
         //update table_notes set (title,content,editedTime) where userId=userId and notesId=notesId
-        database.update(MyDatabaseHelper.TABLE_NOTES,
+        db().update(MyDatabaseHelper.TABLE_NOTES,
                 values,
                 MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.NOTES_ID + "=?",
                 new String[]{String.valueOf(notes.getUserId()), String.valueOf(notes.getNotesId())});
@@ -220,12 +242,12 @@ public class MyRepository {
     public List<Notes> deleteNotes(long userId, long groupId, long notesId) {
         if (groupId == 0) {
             //全部笔记处：所有分组下的该笔记都要删除
-            database.delete(MyDatabaseHelper.TABLE_NOTES,
+            db().delete(MyDatabaseHelper.TABLE_NOTES,
                     MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.NOTES_ID + "=?",
                     new String[]{String.valueOf(userId), String.valueOf(notesId)});
         } else {
             //删除该分组下的该笔记
-            database.delete(MyDatabaseHelper.TABLE_NOTES,
+            db().delete(MyDatabaseHelper.TABLE_NOTES,
                     MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=? and " + MyDatabaseHelper.NOTES_ID + "=?",
                     new String[]{String.valueOf(userId), String.valueOf(groupId), String.valueOf(notesId)});
         }
@@ -240,7 +262,7 @@ public class MyRepository {
         try {
             //select * from table_notes where userId=? and groupId=? order by editedTime desc
             //不加排序时 SQLite 返回顺序不受控，这里默认按编辑时间倒序（最新在前）
-            cursor = database.query(MyDatabaseHelper.TABLE_NOTES,
+            cursor = db().query(MyDatabaseHelper.TABLE_NOTES,
                     null,
                     MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=?",
                     new String[]{String.valueOf(userId), String.valueOf(groupId)},
@@ -293,7 +315,7 @@ public class MyRepository {
         values.put(MyDatabaseHelper.USER_ID, userId);
         values.put(MyDatabaseHelper.GROUP_NAME, groupName);
         //insert into table_groups (userId,groupName) values (userId,groupName)
-        long groupId = database.insert(MyDatabaseHelper.TABLE_GROUPS, null, values);
+        long groupId = db().insert(MyDatabaseHelper.TABLE_GROUPS, null, values);
         //返回完整的分组信息
         return new NoteGroup(userId, groupId, groupName);
     }
@@ -303,12 +325,12 @@ public class MyRepository {
     //同时删除该分组下的笔记
     public void deleteGroup(NoteGroup noteGroup) {
         //删除该分组
-        database.delete(MyDatabaseHelper.TABLE_GROUPS,
+        db().delete(MyDatabaseHelper.TABLE_GROUPS,
                 MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=?",
                 new String[]{String.valueOf(noteGroup.getUserId()),
                         String.valueOf(noteGroup.getGroupId())});
         //删除该分组下的笔记
-        database.delete(MyDatabaseHelper.TABLE_NOTES,
+        db().delete(MyDatabaseHelper.TABLE_NOTES,
                 MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=?",
                 new String[]{String.valueOf(noteGroup.getUserId()),
                         String.valueOf(noteGroup.getGroupId())});
@@ -328,7 +350,7 @@ public class MyRepository {
         ContentValues values = new ContentValues();
         values.put(MyDatabaseHelper.GROUP_NAME, noteGroup.getGroupName());
         //update table_groups set groupName=? where userId=? and groupId=?
-        database.update(MyDatabaseHelper.TABLE_GROUPS,
+        db().update(MyDatabaseHelper.TABLE_GROUPS,
                 values,
                 MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=?",
                 new String[]{String.valueOf(noteGroup.getUserId()),
@@ -342,7 +364,7 @@ public class MyRepository {
         Cursor cursor = null;
         List<NoteGroup> groups = new ArrayList<>();
         try {
-            cursor = database.query(MyDatabaseHelper.TABLE_GROUPS,
+            cursor = db().query(MyDatabaseHelper.TABLE_GROUPS,
                     null,
                     MyDatabaseHelper.USER_ID + "=?",
                     new String[]{String.valueOf(userId)},
@@ -373,7 +395,7 @@ public class MyRepository {
         Cursor cursor = null;
         try {
             //select * from table_notes where userId=? and groupId=? order by editedTime asc/desc
-            cursor = database.query(MyDatabaseHelper.TABLE_NOTES,
+            cursor = db().query(MyDatabaseHelper.TABLE_NOTES,
                     null,
                     MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=?",
                     new String[]{String.valueOf(userId), String.valueOf(groupId)},
@@ -390,7 +412,7 @@ public class MyRepository {
         Cursor cursor = null;
         try {
             //select * from table_notes where userId=? and groupId=0 and title like ?
-            cursor = database.query(MyDatabaseHelper.TABLE_NOTES,
+            cursor = db().query(MyDatabaseHelper.TABLE_NOTES,
                     null,
                     MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=? and " + MyDatabaseHelper.TITLE + " like ?",
                     new String[]{String.valueOf(userId), String.valueOf(0), "%" + keyWord + "%"},

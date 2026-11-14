@@ -328,7 +328,7 @@ public class NoteFragment extends Fragment {
         layoutManager = new LinearLayoutManager(requireContext());
         binding.noteFragmentNotesRv.setLayoutManager(layoutManager);
         binding.noteFragmentNotesRv.addItemDecoration(new RvDecorationUtil(10F));
-        repo = new MyRepository(requireContext());
-        repo.open();
+        //共享仓储：全进程只有一条数据库连接，用完不需要关闭
+        repo = MyRepository.getInstance(requireContext());
     }
 }

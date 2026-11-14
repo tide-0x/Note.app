@@ -296,8 +296,8 @@ public class EditNoteFragment extends Fragment {
         binding = FragmentEditNoteBinding.inflate(getLayoutInflater());
         sharedRepo = SharedDataRepository.getInstance();
         viewModel = new ViewModelProvider(this).get(MyViewModel.class);
-        repo = new MyRepository(requireContext());
-        repo.open();
+        //共享仓储：全进程只有一条数据库连接，用完不需要关闭
+        repo = MyRepository.getInstance(requireContext());
     }
 
 
@@ -309,11 +309,9 @@ public class EditNoteFragment extends Fragment {
             activeDialog.dismiss();
             activeDialog = null;
         }
-        //关闭repo，释放资源
-        if (repo != null) {
-            repo.close();
-            repo = null;
-        }
+        //连接由 MyRepository 单例统一持有，这里不再关闭：
+        //同一条连接可能正被别的页面使用，关掉会让它们下一次查询直接抛 already-closed
+        repo = null;
         binding = null;
     }
 }
