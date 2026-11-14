@@ -11,23 +11,20 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.iteam.examproject.R;
 import com.iteam.examproject.entity.NoteGroup;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class AddToGroupAdapter extends RecyclerView.Adapter<AddToGroupAdapter.ViewHolder> {
-    private List<NoteGroup> noteGroups;
+    private final List<NoteGroup> noteGroups = new ArrayList<>();
     private OnItemClickListener onItemClickListener;
 
     public AddToGroupAdapter() {
     }
 
     public AddToGroupAdapter(List<NoteGroup> noteGroups) {
-        this.noteGroups = noteGroups;
-    }
-
-    public void updateNoteGroups(List<NoteGroup> noteGroups) {
-        this.noteGroups.clear();
-        this.noteGroups.addAll(noteGroups);
-        notifyDataSetChanged();
+        if (noteGroups != null) {
+            this.noteGroups.addAll(noteGroups);
+        }
     }
 
     public void setOnItemClickListener(OnItemClickListener onItemClickListener) {
@@ -57,7 +54,7 @@ public class AddToGroupAdapter extends RecyclerView.Adapter<AddToGroupAdapter.Vi
 
     @Override
     public int getItemCount() {
-        return noteGroups.isEmpty() ? 0 : noteGroups.size();
+        return noteGroups.size();
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {

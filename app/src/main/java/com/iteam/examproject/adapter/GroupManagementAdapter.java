@@ -1,6 +1,7 @@
 package com.iteam.examproject.adapter;
 
 import android.text.InputType;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -9,17 +10,19 @@ import android.widget.EditText;
 import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.iteam.examproject.R;
 import com.iteam.examproject.entity.NoteGroup;
 import com.iteam.examproject.entity.Notes;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagementAdapter.ViewHolder> {
     private static final String TAG = "GroupManagementAdapter";
-    private List<NoteGroup> noteGroups;
+    private final List<NoteGroup> noteGroups = new ArrayList<>();
     private GarbageCanIvClickListener garbageCanIvClickListener;
     private ConfirmIvClickListener confirmIvClickListener;
 
@@ -27,8 +30,9 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
     }
 
     public GroupManagementAdapter(List<NoteGroup> noteGroups) {
-        this.noteGroups = noteGroups;
-        notifyDataSetChanged();
+        if (noteGroups != null) {
+            this.noteGroups.addAll(noteGroups);
+        }
     }
 
 
@@ -40,10 +44,43 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
         this.confirmIvClickListener = confirmIvClickListener;
     }
 
-    public void updateNoteGroupList(List<NoteGroup> noteGroups) {
-        this.noteGroups.clear();
-        this.noteGroups.addAll(noteGroups);
-        notifyDataSetChanged();
+    /**
+     * 用 DiffUtil 只刷新变化的行，避免整表重绘把正在编辑的输入框清掉。
+     */
+    public void updateNoteGroupList(List<NoteGroup> newGroups) {
+        if (newGroups == null || newGroups == noteGroups) {
+            return;
+        }
+        final List<NoteGroup> oldGroups = new ArrayList<>(noteGroups);
+        final List<NoteGroup> target = new ArrayList<>(newGroups);
+        DiffUtil.DiffResult result = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override
+            public int getOldListSize() {
+                return oldGroups.size();
+            }
+
+            @Override
+            public int getNewListSize() {
+                return target.size();
+            }
+
+            @Override
+            public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
+                return oldGroups.get(oldItemPosition).getGroupId()
+                        == target.get(newItemPosition).getGroupId();
+            }
+
+            @Override
+            public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
+                NoteGroup oldItem = oldGroups.get(oldItemPosition);
+                NoteGroup newItem = target.get(newItemPosition);
+                return oldItem.getGroupId() == newItem.getGroupId()
+                        && TextUtils.equals(oldItem.getGroupName(), newItem.getGroupName());
+            }
+        });
+        noteGroups.clear();
+        noteGroups.addAll(target);
+        result.dispatchUpdatesTo(this);
     }
 
     public void addNoteGroup(NoteGroup noteGroup){

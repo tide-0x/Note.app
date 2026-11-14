@@ -1,11 +1,13 @@
 package com.iteam.examproject.adapter;
 
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.iteam.examproject.R;
@@ -15,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.ViewHolder> {
-    private List<Notes> notes=new ArrayList<>();
+    private final List<Notes> notes = new ArrayList<>();
     private NoteClickListener noteClickListener;
     private NoteLongClickListener noteLongClickListener;
 
@@ -23,13 +25,59 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.ViewHolder> {
     }
 
     public NoteAdapter(List<Notes> notes) {
-        this.notes = notes;
+        if (notes != null) {
+            this.notes.addAll(notes);
+        }
     }
 
-    public void updateNotes(List<Notes> notes) {
-        this.notes.clear();
-        this.notes.addAll(notes);
-        notifyDataSetChanged();
+    /**
+     * 用 DiffUtil 计算差异，只刷新真正变化的条目。
+     * 直接 notifyDataSetChanged() 会让所有条目重新绑定，失去增删动画、正在编辑的输入框也会被打断。
+     */
+    public void updateNotes(List<Notes> newNotes) {
+        if (newNotes == null || newNotes == notes) {
+            return;
+        }
+        final List<Notes> oldNotes = new ArrayList<>(notes);
+        final List<Notes> target = new ArrayList<>(newNotes);
+        DiffUtil.DiffResult result = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override
+            public int getOldListSize() {
+                return oldNotes.size();
+            }
+
+            @Override
+            public int getNewListSize() {
+                return target.size();
+            }
+
+            @Override
+            public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
+                Notes oldItem = oldNotes.get(oldItemPosition);
+                Notes newItem = target.get(newItemPosition);
+                long oldId = oldItem.getNotesId();
+                long newId = newItem.getNotesId();
+                if (oldId > 0 && newId > 0) {
+                    return oldId == newId;
+                }
+                //历史数据里 notesId 可能是 0，退化成按标题+编辑时间判断
+                return oldItem.getEditTime() == newItem.getEditTime()
+                        && TextUtils.equals(oldItem.getTitle(), newItem.getTitle());
+            }
+
+            @Override
+            public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
+                Notes oldItem = oldNotes.get(oldItemPosition);
+                Notes newItem = target.get(newItemPosition);
+                return oldItem.getNotesId() == newItem.getNotesId()
+                        && oldItem.getEditTime() == newItem.getEditTime()
+                        && TextUtils.equals(oldItem.getTitle(), newItem.getTitle())
+                        && TextUtils.equals(oldItem.getContent(), newItem.getContent());
+            }
+        });
+        notes.clear();
+        notes.addAll(target);
+        result.dispatchUpdatesTo(this);
     }
 
     public void setNoteClickListener(NoteClickListener noteClickListener) {

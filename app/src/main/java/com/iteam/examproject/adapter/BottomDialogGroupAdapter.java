@@ -11,14 +11,17 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.iteam.examproject.R;
 import com.iteam.examproject.entity.NoteGroup;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class BottomDialogGroupAdapter extends RecyclerView.Adapter<BottomDialogGroupAdapter.ViewHolder> {
-    private List<NoteGroup> noteGroups;
+    private final List<NoteGroup> noteGroups = new ArrayList<>();
     private OnBottomDialogGroupClickListener listener;
     public BottomDialogGroupAdapter(){}
     public BottomDialogGroupAdapter(List<NoteGroup> noteGroups){
-        this.noteGroups=noteGroups;
+        if (noteGroups != null) {
+            this.noteGroups.addAll(noteGroups);
+        }
     }
     public void setListener(OnBottomDialogGroupClickListener listener){
         this.listener=listener;
@@ -48,10 +51,7 @@ public class BottomDialogGroupAdapter extends RecyclerView.Adapter<BottomDialogG
 
     @Override
     public int getItemCount() {
-        if(noteGroups!=null){
-           return noteGroups.size();
-        }
-        return 0;
+        return noteGroups.size();
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder{
