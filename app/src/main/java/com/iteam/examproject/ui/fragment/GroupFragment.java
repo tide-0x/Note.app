@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.iteam.examproject.R;
 import com.iteam.examproject.adapter.GroupManagementAdapter;
 import com.iteam.examproject.databinding.FragmentGroupBinding;
 import com.iteam.examproject.entity.NoteGroup;
@@ -48,19 +49,16 @@ public class GroupFragment extends Fragment {
             public void onClick(View v) {
                 String groupName = binding.addGroupEdit.getText().toString().trim();
                 if (groupName.isEmpty()) {
-                    //.showToast(requireContext(),"组别名不能为空");
-                    Toast.makeText(requireContext(), "组别名不能为空", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), getString(R.string.group_name_empty), Toast.LENGTH_SHORT).show();
                 } else {
                     User user = viewModel.getUserLiveData().getValue();
                     if (user != null) {
                         NoteGroup noteGroup = repo.createGroup(user.getUserId(), groupName);
                         if (noteGroup != null) {
                             adapter.addNoteGroup(noteGroup);
-                            //ToastUtil.showToast(requireContext(),"添加成功");
-                            Toast.makeText(requireContext(), "添加成功", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(requireContext(), getString(R.string.add_success), Toast.LENGTH_SHORT).show();
                         } else {
-                            //ToastUtil.showToast(requireContext(),"该组名已存在");
-                            Toast.makeText(requireContext(), "该组名已存在", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(requireContext(), getString(R.string.group_name_exists), Toast.LENGTH_SHORT).show();
                         }
                     }
                 }
@@ -78,7 +76,7 @@ public class GroupFragment extends Fragment {
                 if (viewModelNoteGroup != null) {
                     if (noteGroup.getUserId() == viewModelNoteGroup.getUserId() &&
                             noteGroup.getGroupId() == viewModelNoteGroup.getGroupId()) {
-                        viewModel.setNoteGroupLiveData(new NoteGroup(noteGroup.getUserId(), 0, "全部笔记"));
+                        viewModel.setNoteGroupLiveData(new NoteGroup(noteGroup.getUserId(), 0, getString(R.string.all_notes)));
                         List<Notes> notesList = repo.getNotesList(viewModelNoteGroup.getUserId(), 0);
                         viewModel.setNotesListLiveData(notesList);
                     }
@@ -93,7 +91,7 @@ public class GroupFragment extends Fragment {
             public boolean onClick(int position, String editedGroupName) {
                 String groupName = editedGroupName.trim();
                 if (groupName.isEmpty()) {
-                    Toast.makeText(requireContext(), "分组名不能为空", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), getString(R.string.group_name_empty), Toast.LENGTH_SHORT).show();
                     noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
                     adapter.updateNoteGroupList(noteGroups);
                     return true;
@@ -108,9 +106,9 @@ public class GroupFragment extends Fragment {
                 noteGroup.setGroupName(groupName);
                 boolean existed = repo.updateGroupName(noteGroup);
                 if (existed) {
-                    Toast.makeText(requireContext(), "该分组名已存在", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), getString(R.string.group_name_exists), Toast.LENGTH_SHORT).show();
                 } else {
-                    Toast.makeText(requireContext(), "修改成功", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), getString(R.string.update_success), Toast.LENGTH_SHORT).show();
                 }
                 noteGroups = repo.getAllGroups(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());
                 adapter.updateNoteGroupList(noteGroups);

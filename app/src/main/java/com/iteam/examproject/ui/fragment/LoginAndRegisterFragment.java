@@ -49,13 +49,13 @@ public class LoginAndRegisterFragment extends Fragment {
         long userId = spf.getLong("userId", -1);
         boolean changedUser= Boolean.TRUE.equals(viewModel.getChangedUserLiveData().getValue());
         if(changedUser){
-            binding.loginBtn.setText("切换账号");
+            binding.loginBtn.setText(R.string.exchange_account);
         }
         if (userId != -1 && !changedUser) {//本地有数据且没有切换账号
             String account = spf.getString("account", "");
             //记住登录态只需要 userId 和 account，密码不再落盘
             viewModel.setUserLiveData(new User(userId, account));
-            viewModel.setNoteGroupLiveData(new NoteGroup(userId,0,"全部笔记"));
+            viewModel.setNoteGroupLiveData(new NoteGroup(userId,0,getString(R.string.all_notes)));
             viewModel.setChangedUserLiveData(false);
             toNoteFragment();
         }
@@ -68,24 +68,20 @@ public class LoginAndRegisterFragment extends Fragment {
                 account = binding.accountEdit.getText().toString().trim();
                 password = binding.passwordEdit.getText().toString().trim();
                 if (account.isEmpty() || password.isEmpty()) {
-                    //ToastUtil.showToast(requireContext(),"账号或密码不能为空");
-                    Toast.makeText(getContext(), "账号或密码不能为空", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
                     return;
                 }
                 User user = repo.login(account, password);
                 if (user == null) {//登录失败
-                    //ToastUtil.showToast(requireContext(),"账号或密码错误");
-                    Toast.makeText(requireActivity(), "账号或密码错误", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), getString(R.string.account_or_password_error), Toast.LENGTH_SHORT).show();
                 } else {
                     User liveDataUser = viewModel.getUserLiveData().getValue();
                     if (liveDataUser != null &&
                             changedUser &&
                             liveDataUser.getUserId() == user.getUserId()) {//判断是否切换账号 true
-                        //ToastUtil.showToast(requireContext(),"该账号为当前登录账号");
-                        Toast.makeText(requireContext(), "该账号为当前登录账号", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(requireContext(), getString(R.string.account_is_current), Toast.LENGTH_SHORT).show();
                     } else {
-                        //ToastUtil.showToast(requireContext(),"登录成功");
-                        Toast.makeText(requireActivity(), "登录成功", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(requireContext(), getString(R.string.login_success), Toast.LENGTH_SHORT).show();
                         saveData(user);
                         toNoteFragment();
                     }
@@ -102,17 +98,14 @@ public class LoginAndRegisterFragment extends Fragment {
                 account = binding.accountEdit.getText().toString().trim();
                 password = binding.passwordEdit.getText().toString().trim();
                 if (account.isEmpty() || password.isEmpty()) {
-                    //ToastUtil.showToast(requireContext(),"账号或密码不能为空");
-                    Toast.makeText(requireActivity(), "账号或密码不能为空", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
                     return;
                 }
                 User user = repo.register(account, password);
                 if (user == null) {
-                    //ToastUtil.showToast(requireContext(),"该账号已存在");
-                    Toast.makeText(requireContext(), "该账号已存在", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), getString(R.string.account_exists), Toast.LENGTH_SHORT).show();
                 } else {
-                    //ToastUtil.showToast(requireContext(),"注册成功");
-                    Toast.makeText(requireContext(), "注册成功", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), getString(R.string.register_success), Toast.LENGTH_SHORT).show();
                     saveData(user);
                     toNoteFragment();
                 }
@@ -125,7 +118,7 @@ public class LoginAndRegisterFragment extends Fragment {
 
     private void saveData(User user) {
         viewModel.setUserLiveData(user);
-        viewModel.setNoteGroupLiveData(new NoteGroup(user.getUserId(),0,"全部笔记"));
+        viewModel.setNoteGroupLiveData(new NoteGroup(user.getUserId(),0,getString(R.string.all_notes)));
         edit.putLong("userId", user.getUserId());
         edit.putString("account", user.getAccount());
         //清掉旧版本曾经写进 SharedPreferences 的明文密码

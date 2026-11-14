@@ -61,10 +61,9 @@ app/src/main/java/com/iteam/examproject/
 
 ## 已知问题
 
-- `MyRepository` 用成员变量 `ContentValues` 复用，异常时可能残留脏值
-- 界面中文文案大量硬编码在 Java 中，未进 `strings.xml`
-- 列表统一 `notifyDataSetChanged()`，未用 `DiffUtil`
 - 每个 Fragment 各自持有 `MyRepository` 与数据库连接，仅 `EditNoteFragment` 主动关闭
+- `SharedDataRepository` 用 `setValue()` 更新，只能在主线程调用
+- 界面逻辑层仍用匿名内部类而非 lambda，`ContentActivity` 的 Fragment 切换为手写实现
 
 ## License
 

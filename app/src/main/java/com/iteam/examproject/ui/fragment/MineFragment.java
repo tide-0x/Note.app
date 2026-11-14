@@ -18,6 +18,7 @@ import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import com.iteam.examproject.R;
 import com.iteam.examproject.databinding.FragmentMineBinding;
 import com.iteam.examproject.entity.User;
 import com.iteam.examproject.repo.MyRepository;
@@ -59,24 +60,24 @@ public class MineFragment extends Fragment {
                 EditText editText = new EditText(requireContext());
                 builder.setView(editText);
                 builder
-                        .setTitle("请输入新的密码")
-                        .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                        .setTitle(R.string.update_password_title)
+                        .setNegativeButton(getString(R.string.cancel), new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 dialog.dismiss();
                             }
                         })
-                        .setPositiveButton("确认", new DialogInterface.OnClickListener() {
+                        .setPositiveButton(getString(R.string.confirm), new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 String changedPassword = editText.getText().toString();
                                 if(changedPassword.isEmpty()){
-                                    Toast.makeText(requireContext(), "密码不能为空", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(requireContext(), getString(R.string.password_empty), Toast.LENGTH_SHORT).show();
                                     return;
                                 }
                                 repo.updatePassword(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId(),
                                         changedPassword);
-                                Toast.makeText(requireContext(), "密码修改成功", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(requireContext(), getString(R.string.password_updated), Toast.LENGTH_SHORT).show();
                                 dialog.dismiss();
                             }
                         })
@@ -101,15 +102,15 @@ public class MineFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
-                builder.setTitle("警告")
-                        .setMessage("是否要注销当前账号")
-                        .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                builder.setTitle(R.string.warning)
+                        .setMessage(R.string.cancel_account_message)
+                        .setNegativeButton(getString(R.string.cancel), new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 dialog.dismiss();
                             }
                         })
-                        .setPositiveButton("确认", new DialogInterface.OnClickListener() {
+                        .setPositiveButton(getString(R.string.confirm), new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 repo.cancelUser(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId());

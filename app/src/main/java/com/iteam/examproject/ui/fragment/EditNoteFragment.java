@@ -113,8 +113,7 @@ public class EditNoteFragment extends Fragment {
 
                 if (titleIsChanged || contentIsChanged) {//标题内容至少有一个发生了改变
                     if (title.isEmpty() && !content.isEmpty()) {//有内容但标题为空
-                        //ToastUtil.showToast(requireContext(),"标题不能为空");
-                        Toast.makeText(requireContext(), "标题不能为空", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(requireContext(), getString(R.string.title_empty), Toast.LENGTH_SHORT).show();
                     } else {
                         //1.都为空
                         //2.都不为空
@@ -164,21 +163,20 @@ public class EditNoteFragment extends Fragment {
                             return true;
                         } else if (!content.isEmpty() && title.isEmpty()) {
                             //有内容但没标题
-                            //ToastUtil.showToast(requireContext(),"标题不能为空");
-                            Toast.makeText(requireContext(), "标题不能为空", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(requireContext(), getString(R.string.title_empty), Toast.LENGTH_SHORT).show();
                             return true;
                         } else {//一般情况
                             //后续用户又点击保存后判断是否有变化
                             originalTitle = title;
                             originalContent = content;
                             SaveNotesData();
-                            Toast.makeText(requireContext(), "保存成功", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(requireContext(), getString(R.string.save_success), Toast.LENGTH_SHORT).show();
                         }
                     } else {//什么都没有改变
                         if (title.isEmpty() && content.isEmpty()) {//没有编辑（新建笔记处来，什么都没有就点了保存）
-                            Toast.makeText(requireContext(), "有东西才会保存喔", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(requireContext(), getString(R.string.nothing_to_save), Toast.LENGTH_SHORT).show();
                         } else {//已保存过又点击了保存
-                            Toast.makeText(requireContext(), "内容已保存", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(requireContext(), getString(R.string.content_saved), Toast.LENGTH_SHORT).show();
                         }
                     }
                 }
@@ -204,7 +202,6 @@ public class EditNoteFragment extends Fragment {
             } else {//从某个分组中来到这个fragment
                 repo.updateNotes(notes);
             }
-            //ToastUtil.showToast(requireContext(),"保存成功");
             //刷新当前分组的笔记列表并通知仓库观察者
             List<Notes> refreshed = repo.getNotesList(notes.getUserId(), notes.getGroupId());
             sharedRepo.setNotesList(refreshed);
@@ -261,8 +258,8 @@ public class EditNoteFragment extends Fragment {
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
         DeleteAlertDialogBinding deleteAlertDialog = DeleteAlertDialogBinding.inflate(getLayoutInflater());
         AlertDialog alertDialog = builder.setView(deleteAlertDialog.getRoot()).create();
-        deleteAlertDialog.customizeAlertDialogTitle.setText("提示");
-        deleteAlertDialog.customizeAlertDialogMessage.setText("是否要删除该笔记");
+        deleteAlertDialog.customizeAlertDialogTitle.setText(R.string.tip);
+        deleteAlertDialog.customizeAlertDialogMessage.setText(R.string.delete_note_message);
         activeDialog = alertDialog;
         //取消
         deleteAlertDialog.customizeAlertDialogCancel.setOnClickListener(new View.OnClickListener() {

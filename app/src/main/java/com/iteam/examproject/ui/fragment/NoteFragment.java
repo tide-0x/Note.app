@@ -68,7 +68,10 @@ public class NoteFragment extends Fragment {
         sharedRepo.getNoteGroupLiveData().observe(getViewLifecycleOwner(), new Observer<NoteGroup>() {
             @Override
             public void onChanged(NoteGroup noteGroup) {
-                binding.noteFragmentToolbar.setTitle(noteGroup.getGroupName());
+                String groupName = noteGroup.getGroupName();
+                //分组名可能是登录前的占位空值，兜底显示「全部笔记」
+                binding.noteFragmentToolbar.setTitle(
+                        groupName == null || groupName.isEmpty() ? getString(R.string.all_notes) : groupName);
                 //给创建笔记的按钮floatActionBtn的fragment传递数据//
                 //给创建笔记的按钮传递空的临时 Notes（避免残留）
                 sharedRepo.setNotes(new Notes(noteGroup.getUserId(), noteGroup.getGroupId(), -1, "", "", -1));
@@ -185,25 +188,23 @@ public class NoteFragment extends Fragment {
 
     private void searchNotes() {
         EditText editText = new EditText(requireContext());
-        editText.setHint("请输入笔记的标题");
+        editText.setHint(R.string.input_note_title_hint);
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
         builder
-                .setTitle("搜索")
+                .setTitle(R.string.search)
                 .setView(editText)
-                .setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                .setNegativeButton(getString(R.string.cancel), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         dialog.dismiss();
                     }
                 })
-                .setPositiveButton("确认", new DialogInterface.OnClickListener() {
+                .setPositiveButton(getString(R.string.confirm), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         String keyWord = editText.getText().toString();
                         if (keyWord.isEmpty()) {
-                            //ToastUtil.showToast(requireContext(),"请输入笔记标题");
-                            Toast.makeText(requireContext(), "请输入笔记标题", Toast.LENGTH_SHORT).show();
-
+                            Toast.makeText(requireContext(), getString(R.string.input_note_title), Toast.LENGTH_SHORT).show();
                         } else {
                             List<Notes> notesList = repo.searchResult(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId(), keyWord);
                             BottomDialogSearchAdapter searchAdapter = new BottomDialogSearchAdapter();
@@ -247,7 +248,7 @@ public class NoteFragment extends Fragment {
             public void onClick(View v) {
                 //获取notes需要groupId为0：不这样做，会导致全部笔记以及在别的分组中的笔记会被重复获取
                 List<Notes> notes = repo.getNotesList(Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId(), 0);
-                viewModel.setNoteGroupLiveData(new NoteGroup(viewModel.getUserLiveData().getValue().getUserId(), 0, "全部笔记"));
+                viewModel.setNoteGroupLiveData(new NoteGroup(viewModel.getUserLiveData().getValue().getUserId(), 0, getString(R.string.all_notes)));
                 viewModel.setNotesListLiveData(notes);
                 dialog.dismiss();
             }
@@ -292,7 +293,7 @@ public class NoteFragment extends Fragment {
         LinearLayoutManager linearLayoutManager = new LinearLayoutManager(requireContext());
         bottomDialogGroupBinding.bottomDialogGroupRv.setAdapter(adapter);
         bottomDialogGroupBinding.bottomDialogGroupRv.setLayoutManager(linearLayoutManager);
-        bottomDialogGroupBinding.bottomDialogGroupTitle.setText("添加至");
+        bottomDialogGroupBinding.bottomDialogGroupTitle.setText(R.string.add_to_group);
         bottomDialogGroupBinding.bottomDialogGroupAllNotes.setVisibility(View.GONE);
         //取消
         bottomDialogGroupBinding.bottomDialogGroupCancel.setOnClickListener(new View.OnClickListener() {
@@ -309,11 +310,9 @@ public class NoteFragment extends Fragment {
                 notes1.setGroupId(noteGroup1.getGroupId());
                 boolean result = repo.addNotesToGroup(notes1);
                 if (result) {//true
-                    //ToastUtil.showToast(requireContext(),"添加成功");
-                    Toast.makeText(requireContext(), "添加成功", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), getString(R.string.add_success), Toast.LENGTH_SHORT).show();
                 } else {
-                    //ToastUtil.showToast(requireContext(),"该分组已有该笔记");
-                    Toast.makeText(requireContext(), "该分组已有该笔记", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(requireContext(), getString(R.string.group_already_has_note), Toast.LENGTH_SHORT).show();
                 }
                 bottomSheetDialog.dismiss();
             }

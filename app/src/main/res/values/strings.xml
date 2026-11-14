@@ -34,4 +34,39 @@
     <string name="search_result">搜索结果</string>
     <string name="nothing">无</string>
     <string name="save_change_message">是否要保存更改</string>
+
+    <!-- 提示 -->
+    <string name="tip">提示</string>
+    <string name="warning">警告</string>
+
+    <!-- 登录 / 注册 -->
+    <string name="account_or_password_empty">账号或密码不能为空</string>
+    <string name="account_or_password_error">账号或密码错误</string>
+    <string name="account_exists">该账号已存在</string>
+    <string name="account_is_current">该账号为当前登录账号</string>
+    <string name="login_success">登录成功</string>
+    <string name="register_success">注册成功</string>
+
+    <!-- 我的 -->
+    <string name="update_password_title">请输入新的密码</string>
+    <string name="password_empty">密码不能为空</string>
+    <string name="password_updated">密码修改成功</string>
+    <string name="cancel_account_message">是否要注销当前账号</string>
+
+    <!-- 笔记 -->
+    <string name="title_empty">标题不能为空</string>
+    <string name="input_note_title_hint">请输入笔记的标题</string>
+    <string name="input_note_title">请输入笔记标题</string>
+    <string name="save_success">保存成功</string>
+    <string name="content_saved">内容已保存</string>
+    <string name="nothing_to_save">有东西才会保存喔</string>
+    <string name="delete_note_message">是否要删除该笔记</string>
+    <string name="add_to_group">添加至</string>
+    <string name="add_success">添加成功</string>
+    <string name="group_already_has_note">该分组已有该笔记</string>
+
+    <!-- 分组 -->
+    <string name="group_name_empty">分组名不能为空</string>
+    <string name="group_name_exists">该分组名已存在</string>
+    <string name="update_success">修改成功</string>
 </resources>
