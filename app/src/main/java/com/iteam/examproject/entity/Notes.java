@@ -1,6 +1,10 @@
 package com.iteam.examproject.entity;
 
-public class Notes {
+import java.io.Serializable;
+
+public class Notes implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     private long userId;
     private long groupId;
     private long notesId;

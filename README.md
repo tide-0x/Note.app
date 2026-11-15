@@ -19,7 +19,7 @@
 | 构建 | Gradle 8.11.1 + AGP 8.9.1 |
 | compileSdk / targetSdk / minSdk | 35 / 35 / 21 |
 | UI | View + Fragment + ViewBinding，Material Components，单 Activity + 底部导航 |
-| 状态 | ViewModel + LiveData（`SharedDataRepository` 单例共享数据） |
+| 状态 | MVVM：页面级 ViewModel（Java + LiveData，单向数据流） |
 | 存储 | SQLite（`SQLiteOpenHelper`，库名 `database.db`，连接由 `MyRepository` 单例统一持有） |
 
 ## 目录结构
@@ -29,11 +29,11 @@ app/src/main/java/com/iteam/examproject/
 ├── adapter/      RecyclerView 适配器
 ├── db/           MyDatabaseHelper（建表）
 ├── entity/       User / NoteGroup / Notes
-├── repo/         MyRepository（全部 SQL）、SharedDataRepository（内存共享数据）、NoteListOps（列表的内存增删改）
+├── repo/         MyRepository（全部 SQL）、NoteListOps（列表的内存增删改）
 ├── ui/activity/  LoginAndRegisterActivity、ContentActivity、EditNoteActivity
-├── ui/fragment/  LoginAndRegister / Note / Group / Mine / EditNote
+├── ui/fragment/  LoginAndRegister / Note / Group / Mine / EditNote（只做渲染、输入校验、对话框）
 ├── utils/        DensityUtil、RvDecorationUtil、ToastUtil
-└── viewmodel/    MyViewModel
+└── viewmodel/    MainViewModel（会话/列表/排序）、EditNoteViewModel、AuthViewModel、GroupManageViewModel、NoteListState、Event
 ```
 
 ## 数据库表
@@ -54,7 +54,7 @@ app/src/main/java/com/iteam/examproject/
 
 > release 构建需要在 `app/build.gradle.kts` 中自行配置签名信息，仓库内不含 keystore。
 
-单元测试（纯 JVM，不需要模拟器）：`./gradlew testDebugUnitTest`，覆盖 `NoteListOps` 的排序与增删改行为。
+单元测试（纯 JVM，不需要模拟器）：`./gradlew testDebugUnitTest`，覆盖 `NoteListOps` 与 `NoteListState` 的排序与增删改行为。
 
 ## 密码存储
 
@@ -71,12 +71,19 @@ app/src/main/java/com/iteam/examproject/
   - 登录密码错误属于后者：`isSuccess() == true`，`getData() == null`；
   - SQL 抛异常属于前者：`isSuccess() == false`，界面统一提示「操作失败，请重试」。
   - 无返回值的写操作用三参数版本 `runAsync(work, onSuccess, onError)`。
-- `SharedDataRepository` 的写入统一经过 `setSafely()`：主线程用 `setValue()` 同步生效，子线程自动降级为 `postValue()`。
-- 笔记列表走**增量更新**：写库成功后不再把整张表查回来，而是按 `notesId` 在内存列表上插入 / 替换 / 删除这一条
-  （`SharedDataRepository.applyNoteInserted / applyNoteUpdated / applyNoteDeleted`，纯内存操作在 `repo/NoteListOps`）。
+- **分层**：View（Fragment/Activity）只做渲染、输入校验、对话框与事件转发；数据访问、线程调度、业务判断都在 ViewModel；
+  ViewModel 只调 `MyRepository`。界面层不出现 `MyRepository.getInstance()`。
+- **状态归属**：`MainViewModel` 作用域是 ContentActivity（`ViewModelProvider(requireActivity())`），
+  持有当前用户、当前分组、笔记列表和排序方式，列表页与分组页共享同一份，退出登录随页面销毁；
+  `EditNoteViewModel` / `AuthViewModel` / `GroupManageViewModel` 各自管自己页面的状态。
+- **跨页传参**：编辑页要编辑哪篇笔记由 Intent 传入（`Notes` 实现了 `Serializable`），
+  保存/删除结果通过 Activity Result 回传列表页，取代原来「先写单例再 startActivity」的时序约定。
+- **一次性事件**（Toast、跳登录页）用 `viewmodel/Event` 包装，观察者取过一次就不再重放，旋转屏幕不会重复弹。
+- 笔记列表走**增量更新**：写库成功后不再把整张表查回来，而是按 `notesId` 在内存列表上插入 / 替换 / 删除这一条，
+  状态机在 `viewmodel/NoteListState`（纯 Java，可单元测试），底层操作在 `repo/NoteListOps`。
   只有「登录」和「切换分组」这种换了一整份数据的场景才调 `MyRepository.getNotesList` 重新查库；
   若列表里认不出被改的那一条（早期数据 `notesId` 为 0 且标题、时间都变了），会退回一次整表重查兜底。
-- 列表顺序只有一个来源：`SharedDataRepository.sortWay`（默认按编辑时间倒序）。整份替换时的排序、写操作后的插入位置、
+- 列表顺序只有一个来源：`NoteListState.sortWay`（默认按编辑时间倒序）。整份替换时的排序、写操作后的插入位置、
   用户点「排序」都按它算，排序本身也在内存里完成，不再查库；代价是排序方式一旦选了就一直沿用，切换分组后也不重置。
 
 ## 已知问题

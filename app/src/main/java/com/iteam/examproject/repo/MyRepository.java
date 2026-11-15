@@ -348,7 +348,7 @@ public class MyRepository {
 
 
     //删除笔记
-    //只负责删库；界面列表由调用方按 notesId 就地摘掉（SharedDataRepository#applyNoteDeleted），
+    //只负责删库；界面列表由调用方按 notesId 就地摘掉（MainViewModel#deleteNote），
     //不再顺手把整张表查回来
     public void deleteNotes(long userId, long groupId, long notesId) {
         if (groupId == 0) {
@@ -366,7 +366,7 @@ public class MyRepository {
 
     //获取笔记(外界)
     //只在「需要从库里重新拿一份完整数据」的时候调用：登录、切换分组。
-    //一次写操作之后不要再用它刷新界面，那条路径走 SharedDataRepository 的 applyXxx（增量修改）
+    //一次写操作之后不要再用它刷新界面，那条路径走 MainViewModel 的增量修改（NoteListState）
     public List<Notes> getNotesList(long userId, long groupId) {
         Cursor cursor = null;
         try {

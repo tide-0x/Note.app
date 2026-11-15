@@ -1,9 +1,11 @@
 package com.iteam.examproject.ui.fragment;
 
 import android.app.AlertDialog;
-import android.content.Intent;
 import android.os.Bundle;
 
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.widget.Toolbar;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
@@ -28,25 +30,30 @@ import com.iteam.examproject.databinding.FragmentNoteBinding;
 import com.iteam.examproject.databinding.SortBottomDialogBinding;
 import com.iteam.examproject.entity.NoteGroup;
 import com.iteam.examproject.entity.Notes;
+import com.iteam.examproject.entity.User;
 import com.iteam.examproject.repo.MyRepository;
-import com.iteam.examproject.repo.SharedDataRepository;
 import com.iteam.examproject.ui.activity.EditNoteActivity;
 import com.iteam.examproject.utils.RvDecorationUtil;
 import com.iteam.examproject.utils.ToastUtil;
-import com.iteam.examproject.viewmodel.MyViewModel;
+import com.iteam.examproject.viewmodel.MainViewModel;
 
 import java.util.List;
-import java.util.Objects;
 
 
 public class NoteFragment extends Fragment {
     private FragmentNoteBinding binding;
-    private MyViewModel viewModel;
-    private MyRepository repo;
+    private MainViewModel viewModel;
     private NoteAdapter noteAdapter;
     private LinearLayoutManager layoutManager;
-    private SharedDataRepository sharedRepo;
     private BottomDialogGroupBinding bottomDialogGroupBinding;
+
+    /**
+     * 编辑页的结果回传：保存/删除成功后按 notesId 在内存列表上做增量修改，
+     * 认不出那一条时 VM 内部会自动退回整表重查。
+     * launcher 必须在字段初始化时注册（Fragment 进入 STARTED 之前）。
+     */
+    private final ActivityResultLauncher<android.content.Intent> editNoteLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), this::onEditNoteResult);
 
     public NoteFragment() {
     }
@@ -57,50 +64,54 @@ public class NoteFragment extends Fragment {
                              Bundle savedInstanceState) {
         init();
 
-        //观察当前分组
-        sharedRepo.getNoteGroupLiveData().observe(getViewLifecycleOwner(), noteGroup -> {
+        //观察当前分组：改标题栏，分组名可能为空（登录前的占位值）就兜底显示「全部笔记」
+        viewModel.getCurrentGroup().observe(getViewLifecycleOwner(), noteGroup -> {
             String groupName = noteGroup.getGroupName();
-            //分组名可能是登录前的占位空值，兜底显示「全部笔记」
             binding.noteFragmentToolbar.setTitle(
                     groupName == null || groupName.isEmpty() ? getString(R.string.all_notes) : groupName);
-            //给创建笔记的按钮传递空的临时 Notes（避免残留）
-            sharedRepo.setNotes(new Notes(noteGroup.getUserId(), noteGroup.getGroupId(), -1, "", "", -1));
         });
 
-        //一开始进入时展示当前分组的笔记（查库放 IO 线程，回来后写进 LiveData 驱动列表）
-        NoteGroup noteGroup = sharedRepo.getNoteGroupLiveData().getValue();
-        if (noteGroup != null) {
-            long userId = noteGroup.getUserId();
-            long groupId = noteGroup.getGroupId();
-            loadNotes(userId, groupId);
-        }
+        //观察提示（VM 里操作失败等一次性消息）
+        viewModel.getMessages().observe(getViewLifecycleOwner(), event -> {
+            Integer resId = event.getContentIfNotHandled();
+            if (resId != null) {
+                Toast.makeText(requireContext(), getString(resId), Toast.LENGTH_SHORT).show();
+            }
+        });
 
-
-        //观察笔记集合
-        sharedRepo.getNotesListLiveData().observe(getViewLifecycleOwner(), notesList -> {
+        //观察笔记集合，DiffUtil 只刷新真正变化的条目
+        viewModel.getNotesList().observe(getViewLifecycleOwner(), notesList -> {
             if (notesList == null) {
                 return;
             }
             noteAdapter.updateNotes(notesList);
-
-            //点击笔记
-            noteAdapter.setNoteClickListener(position -> {
-                sharedRepo.setNotes(notesList.get(position));
-                startActivity(new Intent(requireContext(), EditNoteActivity.class));
-            });
-
-            //长按笔记选择添加至哪个分组
-            noteAdapter.setNoteLongClickListener(position -> notesLongClickListener(position, notesList));
         });
 
+        //点击笔记：带上笔记内容跳编辑页（Intent 传参，不再依赖全局单例）
+        noteAdapter.setNoteClickListener(position -> {
+            Notes note = noteAt(position);
+            if (note != null) {
+                editNoteLauncher.launch(EditNoteActivity.createIntent(requireContext(), note));
+            }
+        });
 
-        //跳转至EditNoteActivity，先清空临时Notes再跳转
+        //长按笔记选择添加至哪个分组
+        noteAdapter.setNoteLongClickListener(position -> {
+            Notes note = noteAt(position);
+            if (note != null) {
+                notesLongClickListener(note);
+            }
+        });
+
+        //跳转至EditNoteActivity新建笔记
         binding.createNoteFloatActionBtn.setOnClickListener(v -> {
-            NoteGroup currentGroup = sharedRepo.getNoteGroupLiveData().getValue();
-            long userId = currentGroup != null ? currentGroup.getUserId() : -1;
-            long groupId = currentGroup != null ? currentGroup.getGroupId() : 0;
-            sharedRepo.setNotes(new Notes(userId, groupId, -1, "", "", -1));
-            startActivity(new Intent(requireActivity(), EditNoteActivity.class));
+            NoteGroup currentGroup = viewModel.getCurrentGroup().getValue();
+            User user = viewModel.getUser().getValue();
+            long userId = user == null ? -1 : user.getUserId();
+            long groupId = currentGroup == null ? 0 : currentGroup.getGroupId();
+            //新建的笔记还没有 id，用 -1 占位
+            editNoteLauncher.launch(EditNoteActivity.createIntent(requireContext(),
+                    new Notes(userId, groupId, -1, "", "", -1)));
         });
 
         binding.noteFragmentToolbar.setOnMenuItemClickListener((MenuItem item) -> {
@@ -122,23 +133,44 @@ public class NoteFragment extends Fragment {
         return binding.getRoot();
     }
 
-    /**
-     * 查某个分组的笔记并写进 LiveData。
-     * 失败时提示一句、保留原列表，不要把空列表当成「没有笔记」刷出去。
-     */
-    private void loadNotes(long userId, long groupId) {
-        repo.runAsync(() -> repo.getNotesList(userId, groupId), result -> {
-            if (!isAdded()) {
-                return;
-            }
-            if (!result.isSuccess()) {
-                ToastUtil.showOperationFailed(requireContext());
-                return;
-            }
-            viewModel.setNotesListLiveData(result.getData());
-        });
+    /** 从当前列表里按位置取笔记，越界防御 */
+    private Notes noteAt(int position) {
+        List<Notes> notes = viewModel.getNotesList().getValue();
+        if (notes == null || position < 0 || position >= notes.size()) {
+            return null;
+        }
+        return notes.get(position);
     }
 
+    /** 编辑页回传的结果：写库已在编辑页完成，这里只改内存列表 */
+    private void onEditNoteResult(ActivityResult result) {
+        if (result.getResultCode() != android.app.Activity.RESULT_OK || result.getData() == null) {
+            return;
+        }
+        String outcome = EditNoteActivity.readOutcome(result.getData());
+        Notes note = EditNoteActivity.readNote(result.getData());
+        if (outcome == null || note == null) {
+            return;
+        }
+        switch (outcome) {
+            case EditNoteActivity.OUTCOME_INSERTED:
+                viewModel.insertNote(note);
+                break;
+            case EditNoteActivity.OUTCOME_UPDATED:
+                viewModel.updateNote(note);
+                break;
+            case EditNoteActivity.OUTCOME_DELETED:
+                viewModel.deleteNote(note);
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
+     * 按编辑时间重排当前列表。
+     * 列表里每条笔记都带着自己的编辑时间，VM 直接按它排序，不用再回数据库查一遍。
+     */
     private void sortNotes() {
         SortBottomDialogBinding sortBottomDialogBinding = SortBottomDialogBinding.inflate(getLayoutInflater());
         BottomSheetDialog dialog = new BottomSheetDialog(requireContext());
@@ -147,24 +179,15 @@ public class NoteFragment extends Fragment {
         //升序
         sortBottomDialogBinding.sortByAsc.setOnClickListener(v -> {
             dialog.dismiss();
-            sortBy(MyRepository.SORT_ASC);
+            viewModel.sortBy(MyRepository.SORT_ASC);
         });
         //降序
         sortBottomDialogBinding.sortByDes.setOnClickListener(v -> {
             dialog.dismiss();
-            sortBy(MyRepository.SORT_DESC);
+            viewModel.sortBy(MyRepository.SORT_DESC);
         });
         //取消
         sortBottomDialogBinding.cancelTv.setOnClickListener(v -> dialog.dismiss());
-    }
-
-    /**
-     * 按编辑时间重排当前列表。
-     * 列表里每条笔记都带着自己的编辑时间，直接按它排序就行，不用再回数据库查一遍。
-     * 排序方式记在 SharedDataRepository 里，之后新建/编辑笔记插到哪一行也按它算。
-     */
-    private void sortBy(String sortWay) {
-        sharedRepo.setSortWay(sortWay);
     }
 
     private void searchNotes() {
@@ -179,40 +202,41 @@ public class NoteFragment extends Fragment {
                     String keyWord = editText.getText().toString();
                     if (keyWord.isEmpty()) {
                         Toast.makeText(requireContext(), getString(R.string.input_note_title), Toast.LENGTH_SHORT).show();
-                    } else {
-                        long userId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
-                        //搜索要查库，结果回来再弹列表
-                        repo.runAsync(() -> repo.searchResult(userId, keyWord), result -> {
-                            if (!isAdded()) {
-                                return;
-                            }
-                            if (!result.isSuccess() || result.getData() == null) {
-                                ToastUtil.showOperationFailed(requireContext());
-                                return;
-                            }
-                            List<Notes> notesList = result.getData();
-                            BottomDialogSearchAdapter searchAdapter = new BottomDialogSearchAdapter();
-                            searchAdapter.updateSearchResults(notesList);
-                            layoutManager = new LinearLayoutManager(requireContext());
-                            BottomDialogSearchNotesBinding searchNotesBinding = BottomDialogSearchNotesBinding.inflate(getLayoutInflater());
-                            searchNotesBinding.bottomDialogNotesRv.setAdapter(searchAdapter);
-                            searchNotesBinding.bottomDialogNotesRv.setLayoutManager(layoutManager);
-                            BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
-                            bottomSheetDialog.setContentView(searchNotesBinding.getRoot());
-                            bottomSheetDialog.show();
-                            searchNotesBinding.bottomDialogGroupCancel.setOnClickListener(v -> bottomSheetDialog.dismiss());
-                            searchAdapter.setListener(position -> {
-                                if (position < 0 || position >= notesList.size()) {
-                                    return;
-                                }
-                                viewModel.setNotesLiveData(notesList.get(position));
-                                bottomSheetDialog.dismiss();
-                                startActivity(new Intent(requireContext(), EditNoteActivity.class));
-                            });
-                        });
+                        return;
                     }
+                    //搜索要查库，结果回来再弹列表
+                    viewModel.searchNotes(keyWord, this::showSearchResult,
+                            () -> {
+                                if (isAdded()) {
+                                    ToastUtil.showOperationFailed(requireContext());
+                                }
+                            });
                 })
                 .show();
+    }
+
+    /** 弹出搜索结果列表，点某一条跳编辑页 */
+    private void showSearchResult(List<Notes> notesList) {
+        if (!isAdded()) {
+            return;
+        }
+        BottomDialogSearchAdapter searchAdapter = new BottomDialogSearchAdapter();
+        searchAdapter.updateSearchResults(notesList);
+        layoutManager = new LinearLayoutManager(requireContext());
+        BottomDialogSearchNotesBinding searchNotesBinding = BottomDialogSearchNotesBinding.inflate(getLayoutInflater());
+        searchNotesBinding.bottomDialogNotesRv.setAdapter(searchAdapter);
+        searchNotesBinding.bottomDialogNotesRv.setLayoutManager(layoutManager);
+        BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
+        bottomSheetDialog.setContentView(searchNotesBinding.getRoot());
+        bottomSheetDialog.show();
+        searchNotesBinding.bottomDialogGroupCancel.setOnClickListener(v -> bottomSheetDialog.dismiss());
+        searchAdapter.setListener(position -> {
+            if (position < 0 || position >= notesList.size()) {
+                return;
+            }
+            bottomSheetDialog.dismiss();
+            editNoteLauncher.launch(EditNoteActivity.createIntent(requireContext(), notesList.get(position)));
+        });
     }
 
     private void chooseGroup() {
@@ -221,24 +245,20 @@ public class NoteFragment extends Fragment {
         dialog.setContentView(bottomDialogGroupBinding.getRoot());
         //全部笔记
         bottomDialogGroupBinding.bottomDialogGroupAllNotes.setOnClickListener(v -> {
+            User user = viewModel.getUser().getValue();
+            if (user == null) {
+                return;
+            }
             //groupId 固定为 0：不这样做，全部笔记和别的分组里的同一篇笔记会被重复获取
-            long allNotesUserId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
-            viewModel.setNoteGroupLiveData(new NoteGroup(allNotesUserId, 0, getString(R.string.all_notes)));
             dialog.dismiss();
-            loadNotes(allNotesUserId, 0);
+            viewModel.switchGroup(new NoteGroup(user.getUserId(), 0, getString(R.string.all_notes)));
         });
 
         //获取当前账号下的分组，结果回来再塞进对话框
-        long userId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
-        repo.runAsync(() -> repo.getAllGroups(userId), result -> {
+        viewModel.loadGroups(noteGroups -> {
             if (!isAdded()) {
                 return;
             }
-            if (!result.isSuccess() || result.getData() == null) {
-                ToastUtil.showOperationFailed(requireContext());
-                return;
-            }
-            List<NoteGroup> noteGroups = result.getData();
             BottomDialogGroupAdapter adapter = new BottomDialogGroupAdapter(noteGroups);
             LinearLayoutManager linearLayoutManager = new LinearLayoutManager(requireContext());
             bottomDialogGroupBinding.bottomDialogGroupRv.setAdapter(adapter);
@@ -247,11 +267,13 @@ public class NoteFragment extends Fragment {
                 if (position < 0 || position >= noteGroups.size()) {
                     return;
                 }
-                NoteGroup noteGroup = noteGroups.get(position);
-                viewModel.setNoteGroupLiveData(noteGroup);
                 dialog.dismiss();
-                loadNotes(noteGroup.getUserId(), noteGroup.getGroupId());
+                viewModel.switchGroup(noteGroups.get(position));
             });
+        }, () -> {
+            if (isAdded()) {
+                ToastUtil.showOperationFailed(requireContext());
+            }
         });
 
         //取消
@@ -259,13 +281,10 @@ public class NoteFragment extends Fragment {
         dialog.show();
     }
 
-    private void notesLongClickListener(int position, List<Notes> notes) {
-        if (position < 0 || position >= notes.size()) {
-            return;
-        }
+    /** 长按笔记：弹分组列表，选一个把笔记加进去 */
+    private void notesLongClickListener(Notes source) {
         //复制一份再改 groupId：这个对象同时被 NoteAdapter 的列表持有，
         //直接 set 会污染列表数据，让 DiffUtil 之后比不出差异
-        Notes source = notes.get(position);
         final Notes note = new Notes(source.getUserId(), source.getGroupId(), source.getNotesId(),
                 source.getTitle(), source.getContent(), source.getEditTime());
         BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
@@ -277,16 +296,10 @@ public class NoteFragment extends Fragment {
         //取消
         bottomDialogGroupBinding.bottomDialogGroupCancel.setOnClickListener(v -> bottomSheetDialog.dismiss());
 
-        long userId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
-        repo.runAsync(() -> repo.getAllGroups(userId), result -> {
+        viewModel.loadGroups(noteGroups -> {
             if (!isAdded()) {
                 return;
             }
-            if (!result.isSuccess() || result.getData() == null) {
-                ToastUtil.showOperationFailed(requireContext());
-                return;
-            }
-            List<NoteGroup> noteGroups = result.getData();
             AddToGroupAdapter adapter = new AddToGroupAdapter(noteGroups);
             LinearLayoutManager linearLayoutManager = new LinearLayoutManager(requireContext());
             bottomDialogGroupBinding.bottomDialogGroupRv.setAdapter(adapter);
@@ -297,34 +310,34 @@ public class NoteFragment extends Fragment {
                 }
                 note.setGroupId(noteGroups.get(itemPosition).getGroupId());
                 bottomSheetDialog.dismiss();
-                repo.runAsync(() -> repo.addNotesToGroup(note), addResult -> {
+                viewModel.addToGroup(note, added -> {
                     if (!isAdded()) {
                         return;
                     }
-                    if (!addResult.isSuccess()) {
-                        ToastUtil.showOperationFailed(requireContext());
-                        return;
-                    }
-                    //返回包是装箱 Boolean，用 TRUE.equals 判断，避免 null 拆箱崩溃
-                    boolean added = Boolean.TRUE.equals(addResult.getData());
                     Toast.makeText(requireContext(),
                             getString(added ? R.string.add_success : R.string.group_already_has_note),
                             Toast.LENGTH_SHORT).show();
+                }, () -> {
+                    if (isAdded()) {
+                        ToastUtil.showOperationFailed(requireContext());
+                    }
                 });
             });
+        }, () -> {
+            if (isAdded()) {
+                ToastUtil.showOperationFailed(requireContext());
+            }
         });
     }
 
     private void init() {
         binding = FragmentNoteBinding.inflate(getLayoutInflater());
-        sharedRepo = SharedDataRepository.getInstance();//使用单例仓库
-        viewModel = new ViewModelProvider(this).get(MyViewModel.class);
+        //页面状态在 ContentActivity 级的 MainViewModel 里，和分组页共享同一份
+        viewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
         noteAdapter = new NoteAdapter();
         binding.noteFragmentNotesRv.setAdapter(noteAdapter);
         layoutManager = new LinearLayoutManager(requireContext());
         binding.noteFragmentNotesRv.setLayoutManager(layoutManager);
         binding.noteFragmentNotesRv.addItemDecoration(new RvDecorationUtil(10F));
-        //共享仓储：全进程只有一条数据库连接，用完不需要关闭
-        repo = MyRepository.getInstance(requireContext());
     }
 }
