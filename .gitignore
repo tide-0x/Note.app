@@ -17,6 +17,7 @@ local.properties
 *.aab
 *.jks
 *.keystore
+keystore.properties
 app/release/
 
 # 系统

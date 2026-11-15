@@ -82,12 +82,98 @@ app/src/main/java/com/iteam/examproject/
 单元测试（纯 JVM，不需要模拟器）：`./gradlew testDebugUnitTest`，覆盖 `domain/NoteListOps` 与 `domain/NoteListState` 的排序与增删改行为。
 `domain` 之外的层没有单元测试（依赖 Android 框架），靠真机回归。
 
+## 发布正式版
+
+正式包必须继续用**同一把密钥**签名，否则已经装了旧版的用户无法覆盖升级（签名不一致会安装失败，只能卸载重装、本地数据全丢）。
+
+| 项 | 值 |
+| --- | --- |
+| 已发布版本 | `v1.0.0-apha`（GitHub Releases）· versionCode `1` · versionName `1.0` |
+| 签名密钥 | `as_key.jks`，别名 `hwt_as_key`（PKCS12，RSA 2048） |
+| 证书 SHA-256 | `31:1F:CB:2A:8B:13:FF:59:6A:14:E3:B8:BF:BB:27:14:53:37:87:7C:76:57:2E:1C:4F:83:85:F4:C4:B6:E5:C5` |
+| 证书有效期 | 2025-10-18 ~ 2050-10-12 |
+
+- 密钥和口令都不进仓库：`.gitignore` 已排除 `*.jks` / `*.keystore` / `keystore.properties`。
+- 当前 `app/build.gradle.kts` **没有**配置 `signingConfigs`，`assembleRelease` 产出的是未签名包。发版时任选其一：
+  用 Android Studio 的「Generate Signed Bundle / APK」手动签；或在本地建 `keystore.properties` + `signingConfigs` 读取（不要提交）。
+- 每次发版 `versionCode` 必须严格大于已发布的值（现在还是 `1`），`versionName` 同步改。
+- 校验手上的包是不是同一把钥匙签的：
+
+```bash
+apksigner verify --print-certs app-release.apk
+```
+
+输出里的 `certificate SHA-256 digest` 应等于上表那串（小写、去掉冒号）。
+
 ## 密码存储
 
 `table_users.password` 存的是加盐摘要，格式 `sha256$迭代次数$盐(Base64)$摘要(Base64)`，每个密码单独随机盐、10000 次 SHA-256 迭代，实现见 `data/PasswordUtil`。
 早期版本写入的明文密码仍可登录，登录成功时自动升级为摘要；`SharedPreferences` 中不再保存密码。
 
-## 数据流与线程
+## 架构与数据流
+
+View 只表达「用户做了什么」，ViewModel 决定「该做什么」，Repository 只管「怎么读写」。
+数据始终沿一个方向流动，回流的只有**结果**：
+
+```mermaid
+flowchart TD
+    V["View：Fragment / Activity<br/>渲染界面、转发用户动作"]
+    VM["ViewModel<br/>页面状态 + 业务判断<br/>MainViewModel 作用域是 ContentActivity"]
+    R["MyRepository<br/>单例，唯一持有 SQLiteDatabase"]
+    DB[("SQLite<br/>database.db")]
+    RV["RecyclerView + DiffUtil<br/>只重绑变化的行"]
+
+    V -- "① 用户动作（点击 / 输入）" --> VM
+    VM -- "② runAsync()：切到 note-db 线程" --> R
+    R <--> DB
+    R -- "③ Result：Handler 切回主线程" --> VM
+    VM -- "④ LiveData：新列表 / 一次性 Event" --> V
+    V -.->|"⑤ notifyItemXxx 局部刷新"| RV
+```
+
+界面层不出现 `MyRepository.getInstance()`：数据访问、线程调度、业务判断都在 ViewModel 里。
+
+### 保存一篇笔记时发生了什么
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant EV as EditNoteFragment
+    participant EVM as EditNoteViewModel
+    participant R as MyRepository
+    participant DB as SQLite
+    participant NV as NoteFragment
+    participant MVM as MainViewModel
+
+    EV->>EVM: 点「保存」→ prepareSave(title, content)
+    EVM->>EVM: 标题空且内容空 → 视为删除，否则写库
+    EVM->>R: runAsync(insert / update)
+    Note over R,DB: note-db 单线程，串行执行
+    R->>DB: INSERT / UPDATE table_notes
+    DB-->>R: 新行号 / 影响行数
+    R-->>EVM: Result（Handler 切回主线程）
+    EVM-->>EV: 成功 → setResult(OUTCOME_*, note)，finish
+    EV->>NV: Activity Result 回到列表页
+    NV->>MVM: updateNote(note)
+    MVM->>MVM: NoteListState.update() 产出新的不可变列表
+    MVM-->>NV: LiveData 派发
+    NV->>NV: DiffUtil 对比，只重绑被改的那一行
+```
+
+关键点：**写库成功后没有再把整张表查回来**。写操作本来就知道自己动了哪一条（新建有行号，编辑和删除有 `notesId`），
+所以「刷新界面」= 在内存列表上改这一条 + 重排，省掉一次全表 `SELECT` 和逐行构造对象。
+
+### 读取路径
+
+| 场景 | 走哪条路 |
+| --- | --- |
+| 登录成功、切换分组 | `MyRepository.getNotesList()` 整表查一次（换了一整份数据） |
+| 新建 / 编辑 / 删除笔记 | 内存增量更新，不查库（认不出被改的那一条时兜底重查一次） |
+| 排序 | 内存重排，不查库 |
+| 搜索 | `MyRepository.searchNotes()`，结果只进对话框，不动主列表 |
+| 分组增删改 | `MyRepository` 查询后派发 `LiveData<List<NoteGroup>>` |
+
+### 线程与状态约定
 
 - `MyRepository` 是单例，全进程只有一条 SQLite 连接，生命周期跟随进程，业务代码不需要开关连接。
 - 所有数据库操作都在一条名为 `note-db` 的后台线程上**串行**执行：界面层用 `runAsync(work, callback)` 提交，
@@ -97,8 +183,6 @@ app/src/main/java/com/iteam/examproject/
   - 登录密码错误属于后者：`isSuccess() == true`，`getData() == null`；
   - SQL 抛异常属于前者：`isSuccess() == false`，界面统一提示「操作失败，请重试」。
   - 无返回值的写操作用三参数版本 `runAsync(work, onSuccess, onError)`。
-- **分层**：View（Fragment/Activity）只做渲染、输入校验、对话框与事件转发；数据访问、线程调度、业务判断都在 ViewModel；
-  ViewModel 只调 `MyRepository`。界面层不出现 `MyRepository.getInstance()`。
 - **状态归属**：`MainViewModel` 作用域是 ContentActivity（`ViewModelProvider(requireActivity())`），
   持有当前用户、当前分组、笔记列表和排序方式，列表页与分组页共享同一份，退出登录随页面销毁；
   `EditNoteViewModel` / `AuthViewModel` / `GroupManageViewModel` 各自管自己页面的状态。
@@ -127,4 +211,6 @@ app/src/main/java/com/iteam/examproject/
 
 ## License
 
-暂未指定 License。
+[MIT](LICENSE) © 2026 tide-0x
+
+可以自由使用、修改、分发（含商业用途），保留版权与许可声明即可。
