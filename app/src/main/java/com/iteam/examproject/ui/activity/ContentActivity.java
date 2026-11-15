@@ -67,7 +67,7 @@ public class ContentActivity extends AppCompatActivity {
         FragmentManager fm = getSupportFragmentManager();
         if (savedInstanceState == null) {
             //首次创建：把首页加进来
-            switchTo(NOTE_FRAGMENT, false);
+            switchTo(NOTE_FRAGMENT);
         } else {
             //重建：已 add 的实例由 FragmentManager 自动恢复，但「谁该显示」不会自动校准，
             //这里显式 show 当前 tag、hide 其余，避免多个 Fragment 叠在一起
@@ -75,7 +75,7 @@ public class ContentActivity extends AppCompatActivity {
             if (fm.findFragmentByTag(currentTag) == null) {
                 //极端情况：当前 tag 的实例没被恢复回来，退回首屏重建
                 currentTag = NOTE_FRAGMENT;
-                switchTo(currentTag, false);
+                switchTo(currentTag);
             } else {
                 showOnly(currentTag);
             }
@@ -92,24 +92,24 @@ public class ContentActivity extends AppCompatActivity {
             if (targetTag.equals(currentTag)) {
                 return true;//已是当前页，不做任何操作
             }
-            switchTo(targetTag, true);
+            switchTo(targetTag);
             return true;
         });
     }
 
     /**
      * 切到指定页面：当前页 hide，目标页 show；目标页从未创建过才 add。
+     *
+     * <p>不做切换动画。原来进出场都挂了 alpha 动画，两个全屏页面同时半透明，
+     * 中途透出的是窗口底色，屏幕会整体闪一下；而三个 tab 之间本来没有空间上的
+     * 先后关系，快速连切时任何过渡都是噪音，直接换页最干净。
      */
-    private void switchTo(String targetTag, boolean animate) {
+    private void switchTo(String targetTag) {
         FragmentManager fm = getSupportFragmentManager();
         Fragment current = fm.findFragmentByTag(currentTag);
         Fragment target = fm.findFragmentByTag(targetTag);
 
         FragmentTransaction ft = fm.beginTransaction();
-        if (animate) {
-            ft.setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out,
-                    android.R.anim.fade_in, android.R.anim.fade_out);
-        }
         if (current != null && current != target && current.isAdded()) {
             ft.hide(current);
         }
