@@ -69,4 +69,7 @@
     <string name="group_name_empty">分组名不能为空</string>
     <string name="group_name_exists">该分组名已存在</string>
     <string name="update_success">修改成功</string>
+
+    <!-- 通用 -->
+    <string name="operation_failed">操作失败，请重试</string>
 </resources>

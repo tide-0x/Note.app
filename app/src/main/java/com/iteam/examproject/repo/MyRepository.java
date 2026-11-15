@@ -27,7 +27,7 @@ import java.util.concurrent.Executors;
  * 每个方法各自创建 ContentValues，不共享可变状态，避免上一次调用失败后脏值残留到下一次。
  *
  * <p>线程模型：下面这些同步方法会在<b>调用线程</b>上直接执行 SQL，界面层请一律用
- * {@link #runAsync(Callable, Callback)} 包一层，不要在主线程直接调。
+ * {@link #runAsync(Callable, ResultCallback)} 包一层，不要在主线程直接调。
  * 单线程执行器保证所有数据库操作串行，天然避免并发写，也保证「先写后读」的顺序。
  */
 public class MyRepository {
@@ -49,9 +49,46 @@ public class MyRepository {
     public static final String SORT_ASC = "asc";
     public static final String SORT_DESC = "desc";
 
+    /**
+     * 一次数据库操作的结果。
+     * 把「失败」和「业务上的空结果」分开：登录密码错误是 {@code isSuccess() == true} 且 {@code getData() == null}，
+     * 而 SQL 执行抛异常才是 {@code isSuccess() == false}。
+     * 之前两者都回调 null，界面层没法区分，只能把错误也提示成「该账号已存在」。
+     */
+    public static final class Result<T> {
+        private final T data;
+        private final Exception error;
+
+        private Result(T data, Exception error) {
+            this.data = data;
+            this.error = error;
+        }
+
+        public static <T> Result<T> success(T data) {
+            return new Result<>(data, null);
+        }
+
+        public static <T> Result<T> failure(Exception error) {
+            return new Result<>(null, error);
+        }
+
+        public boolean isSuccess() {
+            return error == null;
+        }
+
+        /** 失败时为 null；成功时也可能为 null（业务上没有结果），判断成败请用 {@link #isSuccess()} */
+        public T getData() {
+            return data;
+        }
+
+        public Exception getError() {
+            return error;
+        }
+    }
+
     /** 异步结果回调，保证在主线程执行 */
-    public interface Callback<T> {
-        void onResult(T result);
+    public interface ResultCallback<T> {
+        void onResult(Result<T> result);
     }
 
     /**
@@ -85,35 +122,50 @@ public class MyRepository {
     }
 
     /**
-     * 在 IO 线程执行数据库操作，结果切回主线程交给 callback。
-     * 操作抛异常时不会崩应用：记一条日志，回调 null。
+     * 在 IO 线程执行数据库操作，结果（含失败原因）切回主线程交给 callback。
+     * 异常被捕获后包装成 {@link Result#isSuccess()} = false，不会崩应用，也不会被误当成业务空结果。
      */
-    public <T> void runAsync(Callable<T> work, Callback<T> callback) {
+    public <T> void runAsync(Callable<T> work, ResultCallback<T> callback) {
         IO.execute(() -> {
-            T result = null;
+            Result<T> result;
             try {
-                result = work.call();
+                result = Result.success(work.call());
             } catch (Exception e) {
                 Log.e(TAG, "数据库操作失败", e);
+                result = Result.failure(e);
             }
-            final T value = result;
+            final Result<T> finalResult = result;
             MAIN.post(() -> {
                 if (callback != null) {
-                    callback.onResult(value);
+                    callback.onResult(finalResult);
                 }
             });
         });
     }
 
-    /** 无返回值的写操作版本，完成后在主线程执行 onComplete */
-    public void runAsync(Runnable work, Runnable onComplete) {
-        runAsync(() -> {
-            work.run();
-            return null;
-        }, result -> {
-            if (onComplete != null) {
-                onComplete.run();
+    /**
+     * 无返回值的写操作版本：成功后执行 onSuccess，失败执行 onError。
+     * 失败不会再「静默成功」——调用方至少能提示一句，而不是页面刷新了但数据没写进去。
+     */
+    public void runAsync(Runnable work, Runnable onSuccess, Runnable onError) {
+        IO.execute(() -> {
+            boolean ok = true;
+            try {
+                work.run();
+            } catch (Exception e) {
+                ok = false;
+                Log.e(TAG, "数据库操作失败", e);
             }
+            final boolean success = ok;
+            MAIN.post(() -> {
+                if (success) {
+                    if (onSuccess != null) {
+                        onSuccess.run();
+                    }
+                } else if (onError != null) {
+                    onError.run();
+                }
+            });
         });
     }
 

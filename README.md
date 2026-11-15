@@ -65,12 +65,17 @@ app/src/main/java/com/iteam/examproject/
 - 所有数据库操作都在一条名为 `note-db` 的后台线程上**串行**执行：界面层用 `runAsync(work, callback)` 提交，
   结果经主线程 Handler 回调。串行既保证「先写后读」的顺序，也天然避免并发写。
 - 界面层不要直接调用 `MyRepository` 上的同步方法，那会在调用线程上当场执行 SQL。
+- `runAsync` 的回调收到的是 `Result<T>`：`isSuccess()` 区分「执行失败」与「业务上没有结果」。
+  - 登录密码错误属于后者：`isSuccess() == true`，`getData() == null`；
+  - SQL 抛异常属于前者：`isSuccess() == false`，界面统一提示「操作失败，请重试」。
+  - 无返回值的写操作用三参数版本 `runAsync(work, onSuccess, onError)`。
 - `SharedDataRepository` 的写入统一经过 `setSafely()`：主线程用 `setValue()` 同步生效，子线程自动降级为 `postValue()`。
 
 ## 已知问题
 
-- 界面逻辑层仍用匿名内部类而非 lambda，`ContentActivity` 的 Fragment 切换为手写实现
-- `runAsync` 没有错误回传：数据库操作抛异常时只记日志并回调 `null`，界面层需要自己判空
+- 数据库写入仍会整表读回一份列表（`getNotesList`）来刷新界面，笔记数量很大时属于多余开销
+- 分组与笔记的多行冗余存储（同一篇笔记在「全部笔记」与分组里各一行）靠 `notesId` 约定同步，
+  改动任一处都要记得两边一起改
 
 ## License
 

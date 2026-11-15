@@ -62,67 +62,73 @@ public class LoginAndRegisterFragment extends Fragment {
 
         //登录
         //通过数据库获取该user的userId
-        binding.loginBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                account = binding.accountEdit.getText().toString().trim();
-                password = binding.passwordEdit.getText().toString().trim();
-                if (account.isEmpty() || password.isEmpty()) {
-                    Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
+        binding.loginBtn.setOnClickListener(v -> {
+            account = binding.accountEdit.getText().toString().trim();
+            password = binding.passwordEdit.getText().toString().trim();
+            if (account.isEmpty() || password.isEmpty()) {
+                Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
+                return;
+            }
+            final String acc = account;
+            final String pwd = password;
+            //校验密码要做 10000 次 SHA-256，放主线程会明显卡顿，交给 IO 线程
+            repo.runAsync(() -> repo.login(acc, pwd), result -> {
+                if (!isAdded()) {
                     return;
                 }
-                final String acc = account;
-                final String pwd = password;
-                //校验密码要做 10000 次 SHA-256，放主线程会明显卡顿，交给 IO 线程
-                repo.runAsync(() -> repo.login(acc, pwd), user -> {
-                    if (!isAdded()) {
-                        return;
-                    }
-                    if (user == null) {//登录失败
-                        Toast.makeText(requireContext(), getString(R.string.account_or_password_error), Toast.LENGTH_SHORT).show();
+                if (!result.isSuccess()) {
+                    ToastUtil.showOperationFailed(requireContext());
+                    return;
+                }
+                //成功但没查到人 = 账号或密码错误（业务上的空结果，不是出错）
+                User user = result.getData();
+                if (user == null) {
+                    Toast.makeText(requireContext(), getString(R.string.account_or_password_error), Toast.LENGTH_SHORT).show();
+                } else {
+                    User liveDataUser = viewModel.getUserLiveData().getValue();
+                    if (liveDataUser != null &&
+                            changedUser &&
+                            liveDataUser.getUserId() == user.getUserId()) {//判断是否切换账号 true
+                        Toast.makeText(requireContext(), getString(R.string.account_is_current), Toast.LENGTH_SHORT).show();
                     } else {
-                        User liveDataUser = viewModel.getUserLiveData().getValue();
-                        if (liveDataUser != null &&
-                                changedUser &&
-                                liveDataUser.getUserId() == user.getUserId()) {//判断是否切换账号 true
-                            Toast.makeText(requireContext(), getString(R.string.account_is_current), Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(requireContext(), getString(R.string.login_success), Toast.LENGTH_SHORT).show();
-                            saveData(user);
-                            toNoteFragment();
-                        }
+                        Toast.makeText(requireContext(), getString(R.string.login_success), Toast.LENGTH_SHORT).show();
+                        saveData(user);
+                        toNoteFragment();
                     }
-                });
-            }
+                }
+            });
         });
 
         //注册
         //先存进数据库再将user信息给viewmodel
-        binding.registerBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                account = binding.accountEdit.getText().toString().trim();
-                password = binding.passwordEdit.getText().toString().trim();
-                if (account.isEmpty() || password.isEmpty()) {
-                    Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
+        binding.registerBtn.setOnClickListener(v -> {
+            account = binding.accountEdit.getText().toString().trim();
+            password = binding.passwordEdit.getText().toString().trim();
+            if (account.isEmpty() || password.isEmpty()) {
+                Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
+                return;
+            }
+            final String acc = account;
+            final String pwd = password;
+            //注册同样要算摘要，交给 IO 线程
+            repo.runAsync(() -> repo.register(acc, pwd), result -> {
+                if (!isAdded()) {
                     return;
                 }
-                final String acc = account;
-                final String pwd = password;
-                //注册同样要算摘要，交给 IO 线程
-                repo.runAsync(() -> repo.register(acc, pwd), user -> {
-                    if (!isAdded()) {
-                        return;
-                    }
-                    if (user == null) {
-                        Toast.makeText(requireContext(), getString(R.string.account_exists), Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(requireContext(), getString(R.string.register_success), Toast.LENGTH_SHORT).show();
-                        saveData(user);
-                        toNoteFragment();
-                    }
-                });
-            }
+                if (!result.isSuccess()) {
+                    ToastUtil.showOperationFailed(requireContext());
+                    return;
+                }
+                User user = result.getData();
+                if (user == null) {
+                    //账号已存在
+                    Toast.makeText(requireContext(), getString(R.string.account_exists), Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(requireContext(), getString(R.string.register_success), Toast.LENGTH_SHORT).show();
+                    saveData(user);
+                    toNoteFragment();
+                }
+            });
         });
 
 
