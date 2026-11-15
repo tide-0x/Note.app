@@ -21,8 +21,16 @@ import com.iteam.examproject.viewmodel.MainViewModel;
 public class MineFragment extends Fragment {
     private FragmentMineBinding binding;
     private MainViewModel viewModel;
+    /** 防止连点「切换账号」叠出多个登录页：本页重新回到前台时复位 */
+    private boolean switchLaunched;
 
     public MineFragment() {
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        switchLaunched = false;
     }
 
     @Override
@@ -67,13 +75,17 @@ public class MineFragment extends Fragment {
                     .show();
         });
 
-        //切换账号：登录页会关掉自动登录，让用户输另一个账号
+        //切换账号：登录页叠在内容界面上面，不清任务栈、也不结束本页。
+        //这样手势返回 / 返回箭头就是"反悔"，回到「我的」，登录态全程没被动过；
+        //清栈的写法会让返回栈里只剩登录页，返回只能退到桌面，从最近任务回来还是登录页。
         binding.exchangeAccountBtn.setOnClickListener(v -> {
+            if (switchLaunched) {
+                return;
+            }
+            switchLaunched = true;
             Intent intent = new Intent(requireContext(), LoginAndRegisterActivity.class);
             intent.putExtra(LoginAndRegisterActivity.EXTRA_SWITCH_ACCOUNT, true);
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
-            requireActivity().finish();
         });
 
         //注销账号

@@ -7,6 +7,16 @@
     tools:context=".ui.fragment.LoginAndRegisterFragment"
     android:fitsSystemWindows="true">
 
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/login_toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:navigationIcon="@drawable/ic_back"
+        tools:title="@string/exchange_account"
+        tools:visibility="visible" />
+
     <EditText
         android:id="@+id/account_edit"
         android:layout_width="0dp"
@@ -18,7 +28,7 @@
         android:hint="@string/please_input_account"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/login_toolbar" />
 
     <EditText
         android:id="@+id/password_edit"

@@ -72,4 +72,5 @@
 
     <!-- 通用 -->
     <string name="operation_failed">操作失败，请重试</string>
+    <string name="back">返回</string>
 </resources>

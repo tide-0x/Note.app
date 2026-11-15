@@ -49,6 +49,11 @@ public class AuthViewModel extends AndroidViewModel {
         this.switchMode = switchMode;
     }
 
+    /** 本地记住的账号：切换账号页用它回填输入框，用户只需要重输密码 */
+    public String currentAccount() {
+        return spf().getString("account", "");
+    }
+
     /**
      * 自动登录：本地记住了 userId 且不是切换账号场景，直接当登录成功处理。
      * 密码不再落盘，所以记住的只有 userId 和 account。
