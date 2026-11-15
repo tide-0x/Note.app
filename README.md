@@ -77,7 +77,7 @@ app/src/main/java/com/iteam/examproject/
 2. 在项目根目录创建 `local.properties`，写入 `sdk.dir=<你的 SDK 路径>`。
 3. 执行 `./gradlew assembleDebug`，或直接用 Android Studio 打开运行。
 
-> release 构建需要在 `app/build.gradle.kts` 中自行配置签名信息，仓库内不含 keystore。
+> release 构建依赖本地的 `keystore.properties`（已被 `.gitignore` 排除）；文件不存在时 `assembleRelease` 产出未签名包，不影响他人克隆构建。
 
 单元测试（纯 JVM，不需要模拟器）：`./gradlew testDebugUnitTest`，覆盖 `domain/NoteListOps` 与 `domain/NoteListState` 的排序与增删改行为。
 `domain` 之外的层没有单元测试（依赖 Android 框架），靠真机回归。
@@ -88,15 +88,15 @@ app/src/main/java/com/iteam/examproject/
 
 | 项 | 值 |
 | --- | --- |
-| 已发布版本 | `v1.0.0-apha`（GitHub Releases）· versionCode `1` · versionName `1.0` |
+| 当前版本 | `v1.0.0` · versionCode `2` · versionName `1.0.0` |
+| 历史版本 | `v1.0.0-apha` · versionCode `1` · versionName `1.0` |
 | 签名密钥 | `as_key.jks`，别名 `hwt_as_key`（PKCS12，RSA 2048） |
 | 证书 SHA-256 | `31:1F:CB:2A:8B:13:FF:59:6A:14:E3:B8:BF:BB:27:14:53:37:87:7C:76:57:2E:1C:4F:83:85:F4:C4:B6:E5:C5` |
 | 证书有效期 | 2025-10-18 ~ 2050-10-12 |
 
 - 密钥和口令都不进仓库：`.gitignore` 已排除 `*.jks` / `*.keystore` / `keystore.properties`。
-- 当前 `app/build.gradle.kts` **没有**配置 `signingConfigs`，`assembleRelease` 产出的是未签名包。发版时任选其一：
-  用 Android Studio 的「Generate Signed Bundle / APK」手动签；或在本地建 `keystore.properties` + `signingConfigs` 读取（不要提交）。
-- 每次发版 `versionCode` 必须严格大于已发布的值（现在还是 `1`），`versionName` 同步改。
+- 签名已接入构建流程：`app/build.gradle.kts` 的 `signingConfigs` 从根目录 `keystore.properties` 读取，本地建好该文件后 `./gradlew assembleRelease` 直接产出已签名包。
+- 每次发版 `versionCode` 必须严格大于已发布的值（当前 `2`），`versionName` 同步改。
 - 校验手上的包是不是同一把钥匙签的：
 
 ```bash
