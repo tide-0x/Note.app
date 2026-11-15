@@ -16,7 +16,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.Toast;
 
 import com.iteam.examproject.R;
 import com.iteam.examproject.databinding.BackAlertDialogBinding;
@@ -78,7 +77,7 @@ public class EditNoteFragment extends Fragment {
                 case SAVED_NEW:
                 case SAVED_UPDATED:
                     if (isAdded()) {
-                        Toast.makeText(requireContext(), getString(R.string.save_success), Toast.LENGTH_SHORT).show();
+                        ToastUtil.showToast(requireContext(), R.string.save_success);
                     }
                     finishWithResult(outcome.kind == EditNoteViewModel.EditOutcome.Kind.SAVED_NEW
                             ? EditNoteActivity.OUTCOME_INSERTED : EditNoteActivity.OUTCOME_UPDATED, outcome.note);
@@ -132,17 +131,17 @@ public class EditNoteFragment extends Fragment {
                         break;
                     case TITLE_EMPTY:
                         //有内容但没标题
-                        Toast.makeText(requireContext(), getString(R.string.title_empty), Toast.LENGTH_SHORT).show();
+                        ToastUtil.showToast(requireContext(), R.string.title_empty);
                         break;
                     case PROCEED:
                         viewModel.save(title, content);
                         break;
                     case NOTHING_CHANGED_EMPTY:
-                        Toast.makeText(requireContext(), getString(R.string.nothing_to_save), Toast.LENGTH_SHORT).show();
+                        ToastUtil.showToast(requireContext(), R.string.nothing_to_save);
                         break;
                     case NOTHING_CHANGED:
                     default:
-                        Toast.makeText(requireContext(), getString(R.string.content_saved), Toast.LENGTH_SHORT).show();
+                        ToastUtil.showToast(requireContext(), R.string.content_saved);
                         break;
                 }
             }
@@ -170,7 +169,7 @@ public class EditNoteFragment extends Fragment {
         switch (decision) {
             case STAY_TITLE_EMPTY:
                 //有内容但标题为空
-                Toast.makeText(requireContext(), getString(R.string.title_empty), Toast.LENGTH_SHORT).show();
+                ToastUtil.showToast(requireContext(), R.string.title_empty);
                 break;
             case ASK_SAVE:
                 //弹出对话框处理保存/取消，注意这里直接返回，不在此处 finish

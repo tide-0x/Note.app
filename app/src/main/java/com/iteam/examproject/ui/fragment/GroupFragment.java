@@ -4,7 +4,6 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
@@ -43,7 +42,7 @@ public class GroupFragment extends Fragment {
         binding.addGroupIv.setOnClickListener(v -> {
             String groupName = binding.addGroupEdit.getText().toString().trim();
             if (groupName.isEmpty()) {
-                Toast.makeText(requireContext(), getString(R.string.group_name_empty), Toast.LENGTH_SHORT).show();
+                ToastUtil.showToast(requireContext(), R.string.group_name_empty);
                 return;
             }
             viewModel.addGroup(groupName);
@@ -69,7 +68,7 @@ public class GroupFragment extends Fragment {
                 return;
             }
             if (groupName.isEmpty()) {
-                Toast.makeText(requireContext(), getString(R.string.group_name_empty), Toast.LENGTH_SHORT).show();
+                ToastUtil.showToast(requireContext(), R.string.group_name_empty);
                 done.onResult(true);
                 return;
             }
@@ -99,19 +98,19 @@ public class GroupFragment extends Fragment {
             switch (outcome.kind) {
                 case ADDED:
                     //列表由 groups LiveData 的观察者统一刷新，这里只负责提示
-                    Toast.makeText(requireContext(), getString(R.string.add_success), Toast.LENGTH_SHORT).show();
+                    ToastUtil.showToast(requireContext(), R.string.add_success);
                     break;
                 case DUPLICATE_ADD:
-                    Toast.makeText(requireContext(), getString(R.string.group_name_exists), Toast.LENGTH_SHORT).show();
+                    ToastUtil.showToast(requireContext(), R.string.group_name_exists);
                     break;
                 case DELETED:
                     onGroupDeleted(outcome.group);
                     break;
                 case RENAME_OK:
-                    Toast.makeText(requireContext(), getString(R.string.update_success), Toast.LENGTH_SHORT).show();
+                    ToastUtil.showToast(requireContext(), R.string.update_success);
                     break;
                 case DUPLICATE_RENAME:
-                    Toast.makeText(requireContext(), getString(R.string.group_name_exists), Toast.LENGTH_SHORT).show();
+                    ToastUtil.showToast(requireContext(), R.string.group_name_exists);
                     break;
                 case FAILED:
                 default:

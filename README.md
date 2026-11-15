@@ -79,6 +79,8 @@ app/src/main/java/com/iteam/examproject/
 - **跨页传参**：编辑页要编辑哪篇笔记由 Intent 传入（`Notes` 实现了 `Serializable`），
   保存/删除结果通过 Activity Result 回传列表页，取代原来「先写单例再 startActivity」的时序约定。
 - **一次性事件**（Toast、跳登录页）用 `viewmodel/Event` 包装，观察者取过一次就不再重放，旋转屏幕不会重复弹。
+- **提示统一走 `utils/ToastUtil`**：内部复用同一个 Toast 实例，新提示会顶掉正在显示的那条，
+  不会因为连续操作排成一串；界面层不直接调 `Toast.makeText`（一次调用就是一条会排队的提示）。
 - 笔记列表走**增量更新**：写库成功后不再把整张表查回来，而是按 `notesId` 在内存列表上插入 / 替换 / 删除这一条，
   状态机在 `viewmodel/NoteListState`（纯 Java，可单元测试），底层操作在 `repo/NoteListOps`。
   只有「登录」和「切换分组」这种换了一整份数据的场景才调 `MyRepository.getNotesList` 重新查库；

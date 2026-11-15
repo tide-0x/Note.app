@@ -11,11 +11,11 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.Toast;
 
 import com.iteam.examproject.R;
 import com.iteam.examproject.databinding.FragmentMineBinding;
 import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
+import com.iteam.examproject.utils.ToastUtil;
 import com.iteam.examproject.viewmodel.MainViewModel;
 
 public class MineFragment extends Fragment {
@@ -41,7 +41,7 @@ public class MineFragment extends Fragment {
         viewModel.getMessages().observe(getViewLifecycleOwner(), event -> {
             Integer resId = event.getContentIfNotHandled();
             if (resId != null) {
-                Toast.makeText(requireContext(), getString(resId), Toast.LENGTH_SHORT).show();
+                ToastUtil.showToast(requireContext(), resId);
             }
         });
         //会话失效（注销成功）由 ContentActivity 统一处理跳转
@@ -57,7 +57,7 @@ public class MineFragment extends Fragment {
                     .setPositiveButton(getString(R.string.confirm), (dialog, which) -> {
                         String changedPassword = editText.getText().toString();
                         if (changedPassword.isEmpty()) {
-                            Toast.makeText(requireContext(), getString(R.string.password_empty), Toast.LENGTH_SHORT).show();
+                            ToastUtil.showToast(requireContext(), R.string.password_empty);
                             return;
                         }
                         dialog.dismiss();

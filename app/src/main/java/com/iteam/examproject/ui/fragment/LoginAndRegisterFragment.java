@@ -9,7 +9,6 @@ import androidx.lifecycle.ViewModelProvider;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Toast;
 
 import com.iteam.examproject.R;
 import com.iteam.examproject.databinding.FragmentLoginAndRegisterBinding;
@@ -54,22 +53,22 @@ public class LoginAndRegisterFragment extends Fragment {
                     navigateToContent(outcome.user);
                     break;
                 case LOGGED_IN:
-                    Toast.makeText(requireContext(), getString(R.string.login_success), Toast.LENGTH_SHORT).show();
+                    ToastUtil.showToast(requireContext(), R.string.login_success);
                     navigateToContent(outcome.user);
                     break;
                 case REGISTERED:
-                    Toast.makeText(requireContext(), getString(R.string.register_success), Toast.LENGTH_SHORT).show();
+                    ToastUtil.showToast(requireContext(), R.string.register_success);
                     navigateToContent(outcome.user);
                     break;
                 case WRONG_PASSWORD:
                     //成功但没查到人 = 账号或密码错误（业务上的空结果，不是出错）
-                    Toast.makeText(requireContext(), getString(R.string.account_or_password_error), Toast.LENGTH_SHORT).show();
+                    ToastUtil.showToast(requireContext(), R.string.account_or_password_error);
                     break;
                 case ALREADY_CURRENT:
-                    Toast.makeText(requireContext(), getString(R.string.account_is_current), Toast.LENGTH_SHORT).show();
+                    ToastUtil.showToast(requireContext(), R.string.account_is_current);
                     break;
                 case ACCOUNT_EXISTS:
-                    Toast.makeText(requireContext(), getString(R.string.account_exists), Toast.LENGTH_SHORT).show();
+                    ToastUtil.showToast(requireContext(), R.string.account_exists);
                     break;
                 case FAILED:
                 default:
@@ -86,7 +85,7 @@ public class LoginAndRegisterFragment extends Fragment {
             String account = binding.accountEdit.getText().toString().trim();
             String password = binding.passwordEdit.getText().toString().trim();
             if (account.isEmpty() || password.isEmpty()) {
-                Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
+                ToastUtil.showToast(requireContext(), R.string.account_or_password_empty);
                 return;
             }
             //校验密码要做 10000 次 SHA-256，VM 内部走 IO 线程
@@ -98,7 +97,7 @@ public class LoginAndRegisterFragment extends Fragment {
             String account = binding.accountEdit.getText().toString().trim();
             String password = binding.passwordEdit.getText().toString().trim();
             if (account.isEmpty() || password.isEmpty()) {
-                Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
+                ToastUtil.showToast(requireContext(), R.string.account_or_password_empty);
                 return;
             }
             //注册同样要算摘要，VM 内部走 IO 线程

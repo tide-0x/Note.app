@@ -16,7 +16,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
-import android.widget.Toast;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.iteam.examproject.R;
@@ -75,7 +74,7 @@ public class NoteFragment extends Fragment {
         viewModel.getMessages().observe(getViewLifecycleOwner(), event -> {
             Integer resId = event.getContentIfNotHandled();
             if (resId != null) {
-                Toast.makeText(requireContext(), getString(resId), Toast.LENGTH_SHORT).show();
+                ToastUtil.showToast(requireContext(), resId);
             }
         });
 
@@ -201,7 +200,7 @@ public class NoteFragment extends Fragment {
                 .setPositiveButton(getString(R.string.confirm), (d, which) -> {
                     String keyWord = editText.getText().toString();
                     if (keyWord.isEmpty()) {
-                        Toast.makeText(requireContext(), getString(R.string.input_note_title), Toast.LENGTH_SHORT).show();
+                        ToastUtil.showToast(requireContext(), R.string.input_note_title);
                         return;
                     }
                     //搜索要查库，结果回来再弹列表
@@ -314,9 +313,8 @@ public class NoteFragment extends Fragment {
                     if (!isAdded()) {
                         return;
                     }
-                    Toast.makeText(requireContext(),
-                            getString(added ? R.string.add_success : R.string.group_already_has_note),
-                            Toast.LENGTH_SHORT).show();
+                    ToastUtil.showToast(requireContext(),
+                            added ? R.string.add_success : R.string.group_already_has_note);
                 }, () -> {
                     if (isAdded()) {
                         ToastUtil.showOperationFailed(requireContext());
