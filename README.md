@@ -80,6 +80,8 @@ app/src/main/java/com/iteam/examproject/
   保存/删除结果通过 Activity Result 回传列表页，取代原来「先写单例再 startActivity」的时序约定。
 - **切换账号**：从「我的」正常 `startActivity` 叠一层登录页，不清任务栈、也不 `finish()` 内容界面——
   手势返回 / 返回箭头就是「反悔」，回到「我的」，登录态全程没被动过（切换模式只关掉自动登录，不写 SP）；
+  按 Home、手势回桌面也算放弃切换：`LoginAndRegisterActivity.onUserLeaveHint()` 会把自己关掉，
+  避免任务栈里留着一个已经离开过的切换页（用 `onUserLeaveHint` 而非 `onStop`，旋转屏幕和灭屏不受影响）；
   登录成功后用 `FLAG_ACTIVITY_CLEAR_TOP` 重建内容界面，避免旧账号的实例还压在栈里。
   只有「注销 / 退出登录」才用 `CLEAR_TASK`，因为那时已经没有可返回的会话了。
 - **一次性事件**（Toast、跳登录页）用 `viewmodel/Event` 包装，观察者取过一次就不再重放，旋转屏幕不会重复弹。
