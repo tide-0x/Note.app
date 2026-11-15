@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-    tools:context=".ui.activity.LoginAndRegisterActivity">
+    tools:context=".feature.auth.LoginAndRegisterActivity">
 
     <androidx.fragment.app.FragmentContainerView
         android:id="@+id/login_and_register_fragment_container"

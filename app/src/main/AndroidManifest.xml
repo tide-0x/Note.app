@@ -13,14 +13,14 @@
         android:theme="@style/Theme.ExamProject"
         tools:targetApi="31">
         <activity
-            android:name=".ui.activity.EditNoteActivity"
+            android:name=".feature.editor.EditNoteActivity"
             android:exported="false" />
         <activity
-            android:name=".ui.activity.ContentActivity"
+            android:name=".feature.main.ContentActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustPan|stateHidden"/>
         <activity
-            android:name=".ui.activity.LoginAndRegisterActivity"
+            android:name=".feature.auth.LoginAndRegisterActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

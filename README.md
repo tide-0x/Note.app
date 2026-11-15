@@ -20,21 +20,46 @@
 | compileSdk / targetSdk / minSdk | 35 / 35 / 21 |
 | UI | View + Fragment + ViewBinding，Material Components，单 Activity + 底部导航 |
 | 状态 | MVVM：页面级 ViewModel（Java + LiveData，单向数据流） |
+| 分包 | 按功能分包（`feature/*`）+ `data` / `domain` / `core`，层由类名后缀体现 |
 | 存储 | SQLite（`SQLiteOpenHelper`，库名 `database.db`，连接由 `MyRepository` 单例统一持有） |
 
 ## 目录结构
 
 ```
 app/src/main/java/com/iteam/examproject/
-├── adapter/      RecyclerView 适配器
-├── db/           MyDatabaseHelper（建表）
-├── entity/       User / NoteGroup / Notes
-├── repo/         MyRepository（全部 SQL）、NoteListOps（列表的内存增删改）
-├── ui/activity/  LoginAndRegisterActivity、ContentActivity、EditNoteActivity
-├── ui/fragment/  LoginAndRegister / Note / Group / Mine / EditNote（只做渲染、输入校验、对话框）
-├── utils/        DensityUtil、RvDecorationUtil、ToastUtil
-└── viewmodel/    MainViewModel（会话/列表/排序）、EditNoteViewModel、AuthViewModel、GroupManageViewModel、NoteListState、Event
+├── data/                 数据层：只有这里知道「数据存在哪、长什么样」
+│   ├── MyRepository      全部 SQL + 线程调度（runAsync）
+│   ├── MyDatabaseHelper  建表 / 索引 / 版本迁移
+│   ├── PasswordUtil      口令摘要（定义口令在库里怎么存）
+│   └── model/            User、NoteGroup、Notes（纯数据类，可跨页传输）
+├── domain/               业务与状态逻辑：纯 Java，不依赖 Android，可直接跑 JVM 单测
+│   ├── NoteListState     列表 + 排序的不可变状态机
+│   └── NoteListOps       列表的排序 / 插入 / 替换 / 删除
+├── core/                 跨功能通用件：没有业务语义，换个项目也能用
+│   ├── Event             一次性事件包装
+│   ├── ToastUtil         复用同一个 Toast 实例，避免连续操作排队
+│   ├── RvDecorationUtil  RecyclerView 间距装饰
+│   └── DensityUtil       dp / px 换算
+└── feature/              按功能分包：一个功能的 View + ViewModel + Adapter 聚在一起
+    ├── auth/             登录 / 注册 / 切换账号（Activity、Fragment、AuthViewModel）
+    ├── main/             ContentActivity + MainViewModel（会话、当前分组、列表、排序）
+    ├── notes/            笔记列表页 NoteFragment + NoteAdapter + 三个对话框适配器
+    ├── editor/           笔记编辑页（EditNoteActivity、EditNoteFragment、EditNoteViewModel）
+    ├── group/            分组管理页（GroupFragment、GroupManagementAdapter、GroupManageViewModel）
+    └── mine/             「我的」页
 ```
+
+### 分包原则
+
+- **按功能分，不按层分。** 类名后缀已经说明了它在哪一层（`XxxFragment` / `XxxViewModel` / `XxxAdapter` / `MyRepository`），
+  包再按层切一次，等于把一个功能的代码摊到 `ui/fragment`、`viewmodel`、`adapter` 三个目录里：
+  改「笔记列表」要在三处来回跳，而 `adapter/` 下的五个适配器光看目录分不出哪个属于哪个页面。
+- **数据层独占一层。** `data` 是「数据在哪」的唯一答案：SQL、建表、连接、线程调度都在这里，别的包不出现 `SQLiteDatabase` / `Cursor`。
+- **纯逻辑单独成层。** `domain` 里是不依赖 Android 的类，能在 JVM 上直接跑单测——它是整个项目唯一能被廉价测试覆盖的部分，
+  所以测试包和它一一对应（`app/src/test/.../domain`）。
+- **`core` 只放通用件。** 判断标准：删掉它，哪个功能会坏？如果一个都答不上来，它就属于 `core`，而不是某个 feature。
+- **依赖方向单向。** `feature` → `domain` / `core` / `data`；`domain` 与 `data` 只依赖 `data.model`；`core` 不依赖项目内其他包。
+  跨层访问只有一条许可路径：**ViewModel 调 `MyRepository`**，界面层（Fragment / Activity / Adapter）不 import 数据层。
 
 ## 数据库表
 
@@ -54,11 +79,12 @@ app/src/main/java/com/iteam/examproject/
 
 > release 构建需要在 `app/build.gradle.kts` 中自行配置签名信息，仓库内不含 keystore。
 
-单元测试（纯 JVM，不需要模拟器）：`./gradlew testDebugUnitTest`，覆盖 `NoteListOps` 与 `NoteListState` 的排序与增删改行为。
+单元测试（纯 JVM，不需要模拟器）：`./gradlew testDebugUnitTest`，覆盖 `domain/NoteListOps` 与 `domain/NoteListState` 的排序与增删改行为。
+`domain` 之外的层没有单元测试（依赖 Android 框架），靠真机回归。
 
 ## 密码存储
 
-`table_users.password` 存的是加盐摘要，格式 `sha256$迭代次数$盐(Base64)$摘要(Base64)`，每个密码单独随机盐、10000 次 SHA-256 迭代，实现见 `utils/PasswordUtil`。
+`table_users.password` 存的是加盐摘要，格式 `sha256$迭代次数$盐(Base64)$摘要(Base64)`，每个密码单独随机盐、10000 次 SHA-256 迭代，实现见 `data/PasswordUtil`。
 早期版本写入的明文密码仍可登录，登录成功时自动升级为摘要；`SharedPreferences` 中不再保存密码。
 
 ## 数据流与线程
@@ -84,11 +110,11 @@ app/src/main/java/com/iteam/examproject/
   避免任务栈里留着一个已经离开过的切换页（用 `onUserLeaveHint` 而非 `onStop`，旋转屏幕和灭屏不受影响）；
   登录成功后用 `FLAG_ACTIVITY_CLEAR_TOP` 重建内容界面，避免旧账号的实例还压在栈里。
   只有「注销 / 退出登录」才用 `CLEAR_TASK`，因为那时已经没有可返回的会话了。
-- **一次性事件**（Toast、跳登录页）用 `viewmodel/Event` 包装，观察者取过一次就不再重放，旋转屏幕不会重复弹。
-- **提示统一走 `utils/ToastUtil`**：内部复用同一个 Toast 实例，新提示会顶掉正在显示的那条，
+- **一次性事件**（Toast、跳登录页）用 `core/Event` 包装，观察者取过一次就不再重放，旋转屏幕不会重复弹。
+- **提示统一走 `core/ToastUtil`**：内部复用同一个 Toast 实例，新提示会顶掉正在显示的那条，
   不会因为连续操作排成一串；界面层不直接调 `Toast.makeText`（一次调用就是一条会排队的提示）。
 - 笔记列表走**增量更新**：写库成功后不再把整张表查回来，而是按 `notesId` 在内存列表上插入 / 替换 / 删除这一条，
-  状态机在 `viewmodel/NoteListState`（纯 Java，可单元测试），底层操作在 `repo/NoteListOps`。
+  状态机在 `domain/NoteListState`（纯 Java，可单元测试），底层操作在 `domain/NoteListOps`。
   只有「登录」和「切换分组」这种换了一整份数据的场景才调 `MyRepository.getNotesList` 重新查库；
   若列表里认不出被改的那一条（早期数据 `notesId` 为 0 且标题、时间都变了），会退回一次整表重查兜底。
 - 列表顺序只有一个来源：`NoteListState.sortWay`（默认按编辑时间倒序）。整份替换时的排序、写操作后的插入位置、
