@@ -348,7 +348,9 @@ public class MyRepository {
 
 
     //删除笔记
-    public List<Notes> deleteNotes(long userId, long groupId, long notesId) {
+    //只负责删库；界面列表由调用方按 notesId 就地摘掉（SharedDataRepository#applyNoteDeleted），
+    //不再顺手把整张表查回来
+    public void deleteNotes(long userId, long groupId, long notesId) {
         if (groupId == 0) {
             //全部笔记处：所有分组下的该笔记都要删除
             db().delete(MyDatabaseHelper.TABLE_NOTES,
@@ -360,12 +362,11 @@ public class MyRepository {
                     MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=? and " + MyDatabaseHelper.NOTES_ID + "=?",
                     new String[]{String.valueOf(userId), String.valueOf(groupId), String.valueOf(notesId)});
         }
-
-        return getNotesList(userId,groupId);
     }
 
     //获取笔记(外界)
-    //全部笔记的groupId为0
+    //只在「需要从库里重新拿一份完整数据」的时候调用：登录、切换分组。
+    //一次写操作之后不要再用它刷新界面，那条路径走 SharedDataRepository 的 applyXxx（增量修改）
     public List<Notes> getNotesList(long userId, long groupId) {
         Cursor cursor = null;
         try {
@@ -492,24 +493,6 @@ public class MyRepository {
                 groups.add(noteGroup);
             }
             return groups;
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-    }
-
-    //排序
-    public List<Notes> notesSort(long userId, long groupId, String sortWay) {
-        Cursor cursor = null;
-        try {
-            //select * from table_notes where userId=? and groupId=? order by editedTime asc/desc
-            cursor = db().query(MyDatabaseHelper.TABLE_NOTES,
-                    null,
-                    MyDatabaseHelper.USER_ID + "=? and " + MyDatabaseHelper.GROUP_ID + "=?",
-                    new String[]{String.valueOf(userId), String.valueOf(groupId)},
-                    null, null, MyDatabaseHelper.EDIT_TIME + " " + sortWay, null);
-            return gainNotesList(cursor);
         } finally {
             if (cursor != null) {
                 cursor.close();

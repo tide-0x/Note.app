@@ -24,13 +24,12 @@ import com.iteam.examproject.R;
 import com.iteam.examproject.databinding.BackAlertDialogBinding;
 import com.iteam.examproject.databinding.DeleteAlertDialogBinding;
 import com.iteam.examproject.databinding.FragmentEditNoteBinding;
+import com.iteam.examproject.entity.NoteGroup;
 import com.iteam.examproject.entity.Notes;
 import com.iteam.examproject.repo.MyRepository;
 import com.iteam.examproject.repo.SharedDataRepository;
 import com.iteam.examproject.utils.ToastUtil;
 import com.iteam.examproject.viewmodel.MyViewModel;
-
-import java.util.List;
 
 public class EditNoteFragment extends Fragment {
     private FragmentEditNoteBinding binding;
@@ -130,17 +129,20 @@ public class EditNoteFragment extends Fragment {
                         long notesUserId = viewModelNotes.getUserId();
                         long notesGroupId = viewModelNotes.getGroupId();
                         long notesId = viewModelNotes.getNotesId();
-                        repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), result -> {
+                        repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), () -> {
                             if (!isAdded()) {
                                 return;
                             }
-                            if (!result.isSuccess()) {
-                                ToastUtil.showOperationFailed(requireContext());
-                                return;
+                            //列表里摘掉这一条即可，不必整表重查
+                            if (!sharedRepo.applyNoteDeleted(viewModelNotes)) {
+                                reloadCurrentNotesList();
                             }
                             sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
-                            sharedRepo.setNotesList(result.getData());
                             requireActivity().finish();
+                        }, () -> {
+                            if (isAdded()) {
+                                ToastUtil.showOperationFailed(requireContext());
+                            }
                         });
                         return true;
                     } else if (!content.isEmpty() && title.isEmpty()) {
@@ -201,7 +203,7 @@ public class EditNoteFragment extends Fragment {
     }
 
     /**
-     * 保存当前笔记：新建走 createNote，已存在的走 updateNotes，然后刷新当前分组的列表。
+     * 保存当前笔记：新建走 createNote，已存在的走 updateNotes，然后在内存列表上改这一条。
      * 写库在 IO 线程，onSaved 在主线程回调；需要界面跳转或提示的，都放进 onSaved。
      */
     private void SaveNotesData(Runnable onSaved) {
@@ -225,14 +227,13 @@ public class EditNoteFragment extends Fragment {
         final String noteTitle = notes.getTitle();
         final String noteContent = notes.getContent();
         repo.runAsync(() -> {
-            long newNotesId = -1;
             if (isNew) {//从创建笔记的按钮来到这个fragment
-                newNotesId = repo.createNote(userId, groupId, noteTitle, noteContent, editedTime);
-            } else {//从某个分组中来到这个fragment
-                repo.updateNotes(notes);
+                //新建只需要回传插入出来的行号，别的笔记都没动，不用把列表查回来
+                return repo.createNote(userId, groupId, noteTitle, noteContent, editedTime);
             }
-            //写完顺手把当前分组的列表读回来，避免调两次 runAsync
-            return new SaveResult(newNotesId, repo.getNotesList(userId, groupId));
+            //从某个分组中来到这个fragment
+            repo.updateNotes(notes);
+            return -1L;
         }, result -> {
             if (!isAdded()) {
                 return;
@@ -242,33 +243,40 @@ public class EditNoteFragment extends Fragment {
                 ToastUtil.showOperationFailed(requireContext());
                 return;
             }
-            SaveResult saved = result.getData();
-            if (saved == null) {
-                return;
-            }
-            if (saved.notesId > 0) {
+            Long savedNotesId = result.getData();
+            if (savedNotesId != null && savedNotesId > 0) {
                 //新建成功：行号记在这份副本上，本页再点保存就走更新，不会重复建一条
-                notes.setNotesId(saved.notesId);
+                notes.setNotesId(savedNotesId);
+                sharedRepo.applyNoteInserted(notes);
+            } else if (!sharedRepo.applyNoteUpdated(notes)) {
+                //列表里认不出这一条（早期数据没有 notesId），只能重新查一遍兜底
+                reloadCurrentNotesList();
             }
             //用这份独立副本替换 notesLiveData 的引用，之后的保存/返回对话框读到的都不再是列表里的对象
             sharedRepo.setNotes(notes);
-            //刷新当前分组的笔记列表并通知仓库观察者
-            sharedRepo.setNotesList(saved.notes);
             if (onSaved != null) {
                 onSaved.run();
             }
         });
     }
 
-    /** runAsync 的返回包：新建出来的 notesId + 刷新后的列表 */
-    private static class SaveResult {
-        final long notesId;
-        final List<Notes> notes;
-
-        SaveResult(long notesId, List<Notes> notes) {
-            this.notesId = notesId;
-            this.notes = notes;
+    /**
+     * 兜底刷新：增量修改认不出那一条笔记时才走这里，把<b>当前显示的分组</b>重新查一遍。
+     * 正常路径不会进来——写库成功、内存列表也改好就够了。
+     * 查的是当前分组而不是笔记自己的 groupId：从搜索结果点进来的笔记 groupId 是 0，
+     * 但屏幕上显示的还是原来那个分组。
+     */
+    private void reloadCurrentNotesList() {
+        NoteGroup current = sharedRepo.getNoteGroupLiveData().getValue();
+        if (current == null) {
+            return;
         }
+        repo.runAsync(() -> repo.getNotesList(current.getUserId(), current.getGroupId()), result -> {
+            if (!isAdded() || !result.isSuccess() || result.getData() == null) {
+                return;
+            }
+            sharedRepo.setNotesList(result.getData());
+        });
     }
 
     private void backAlertDialog() {
@@ -294,17 +302,19 @@ public class EditNoteFragment extends Fragment {
                     long notesId = notes.getNotesId();
                     alertDialog.dismiss();
                     activeDialog = null;
-                    repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), result -> {
+                    repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), () -> {
                         if (!isAdded()) {
                             return;
                         }
-                        if (!result.isSuccess()) {
-                            ToastUtil.showOperationFailed(requireContext());
-                            return;
+                        if (!sharedRepo.applyNoteDeleted(notes)) {
+                            reloadCurrentNotesList();
                         }
-                        sharedRepo.setNotesList(result.getData());
                         sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
                         requireActivity().finish();
+                    }, () -> {
+                        if (isAdded()) {
+                            ToastUtil.showOperationFailed(requireContext());
+                        }
                     });
                     return;
                 }
@@ -350,17 +360,19 @@ public class EditNoteFragment extends Fragment {
             long notesUserId = notes.getUserId();
             long notesGroupId = notes.getGroupId();
             long notesId = notes.getNotesId();
-            repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), result -> {
+            repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), () -> {
                 if (!isAdded()) {
                     return;
                 }
-                if (!result.isSuccess()) {
-                    ToastUtil.showOperationFailed(requireContext());
-                    return;
+                if (!sharedRepo.applyNoteDeleted(notes)) {
+                    reloadCurrentNotesList();
                 }
-                sharedRepo.setNotesList(result.getData());
                 sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
                 requireActivity().finish();
+            }, () -> {
+                if (isAdded()) {
+                    ToastUtil.showOperationFailed(requireContext());
+                }
             });
         });
         alertDialog.show();

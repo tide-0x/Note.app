@@ -159,25 +159,12 @@ public class NoteFragment extends Fragment {
     }
 
     /**
-     * 按编辑时间重新排序当前分组。排序结果写回 LiveData，由观察者刷新列表。
+     * 按编辑时间重排当前列表。
+     * 列表里每条笔记都带着自己的编辑时间，直接按它排序就行，不用再回数据库查一遍。
+     * 排序方式记在 SharedDataRepository 里，之后新建/编辑笔记插到哪一行也按它算。
      */
     private void sortBy(String sortWay) {
-        NoteGroup noteGroup = viewModel.getNoteGroupLiveData().getValue();
-        if (viewModel.getUserLiveData().getValue() == null || noteGroup == null) {
-            return;
-        }
-        long userId = viewModel.getUserLiveData().getValue().getUserId();
-        long groupId = noteGroup.getGroupId();
-        repo.runAsync(() -> repo.notesSort(userId, groupId, sortWay), result -> {
-            if (!isAdded()) {
-                return;
-            }
-            if (!result.isSuccess()) {
-                ToastUtil.showOperationFailed(requireContext());
-                return;
-            }
-            viewModel.setNotesListLiveData(result.getData());
-        });
+        sharedRepo.setSortWay(sortWay);
     }
 
     private void searchNotes() {
