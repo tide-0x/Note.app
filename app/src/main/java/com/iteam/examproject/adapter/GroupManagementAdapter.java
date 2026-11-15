@@ -135,48 +135,39 @@ public class GroupManagementAdapter extends RecyclerView.Adapter<GroupManagement
         editTextEnable(false, holder.editGroupName);
 
         //编辑按钮
-        holder.editIv.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                editTextEnable(true, holder.editGroupName);
-                holder.confirmIv.setVisibility(View.VISIBLE);
-            }
+        holder.editIv.setOnClickListener(v -> {
+            editTextEnable(true, holder.editGroupName);
+            holder.confirmIv.setVisibility(View.VISIBLE);
         });
 
         //垃圾桶
         if (garbageCanIvClickListener != null) {
-            holder.garbageCanIv.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    int currentPosition = holder.getBindingAdapterPosition();
-                    if (currentPosition != RecyclerView.NO_POSITION) {
-                        garbageCanIvClickListener.onClick(currentPosition);
-                    }
+            holder.garbageCanIv.setOnClickListener(v -> {
+                int currentPosition = holder.getBindingAdapterPosition();
+                if (currentPosition != RecyclerView.NO_POSITION) {
+                    garbageCanIvClickListener.onClick(currentPosition);
                 }
             });
         }
 
         //确认
         if (confirmIvClickListener != null) {
-            holder.confirmIv.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    String editedGroupName = holder.editGroupName.getText().toString().trim();
-                    int currentPosition = holder.getBindingAdapterPosition();
-                    if (currentPosition == RecyclerView.NO_POSITION) {
+            holder.confirmIv.setOnClickListener(v -> {
+                String editedGroupName = holder.editGroupName.getText().toString().trim();
+                int currentPosition = holder.getBindingAdapterPosition();
+                if (currentPosition == RecyclerView.NO_POSITION) {
+                    return;
+                }
+                //改名要走数据库，结果异步回传：failed=true 表示重名，需要还原成原来的名字
+                confirmIvClickListener.onConfirm(currentPosition, editedGroupName, failed -> {
+                    //等待数据库返回期间列表可能已经变了，这一行被复用就不要再改它
+                    if (holder.getBindingAdapterPosition() != currentPosition) {
                         return;
                     }
-                    //改名要走数据库，结果异步回传：failed=true 表示重名，需要还原成原来的名字
-                    confirmIvClickListener.onConfirm(currentPosition, editedGroupName, failed -> {
-                        //等待数据库返回期间列表可能已经变了，这一行被复用就不要再改它
-                        if (holder.getBindingAdapterPosition() != currentPosition) {
-                            return;
-                        }
-                        holder.editGroupName.setText(failed ? originalGroupName : editedGroupName);
-                        holder.confirmIv.setVisibility(View.GONE);
-                        editTextEnable(false, holder.editGroupName);
-                    });
-                }
+                    holder.editGroupName.setText(failed ? originalGroupName : editedGroupName);
+                    holder.confirmIv.setVisibility(View.GONE);
+                    editTextEnable(false, holder.editGroupName);
+                });
             });
 
         }

@@ -85,13 +85,10 @@ public class BottomDialogSearchAdapter extends RecyclerView.Adapter<BottomDialog
     public void onBindViewHolder(@NonNull BottomDialogSearchAdapter.ViewHolder holder, int position) {
         holder.textView.setText(notes.get(position).getTitle());
         if(listener!=null){
-            holder.itemView.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    int currentPosition = holder.getBindingAdapterPosition();
-                    if (currentPosition != RecyclerView.NO_POSITION) {
-                        listener.onClick(currentPosition);
-                    }
+            holder.itemView.setOnClickListener(v -> {
+                int currentPosition = holder.getBindingAdapterPosition();
+                if (currentPosition != RecyclerView.NO_POSITION) {
+                    listener.onClick(currentPosition);
                 }
             });
         }

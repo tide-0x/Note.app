@@ -37,13 +37,10 @@ public class BottomDialogGroupAdapter extends RecyclerView.Adapter<BottomDialogG
     public void onBindViewHolder(@NonNull BottomDialogGroupAdapter.ViewHolder holder, int position) {
         holder.textView.setText(noteGroups.get(position).getGroupName());
         if(listener!=null){
-            holder.itemView.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    int currentPosition = holder.getBindingAdapterPosition();
-                    if (currentPosition != RecyclerView.NO_POSITION) {
-                        listener.onClick(currentPosition);
-                    }
+            holder.itemView.setOnClickListener(v -> {
+                int currentPosition = holder.getBindingAdapterPosition();
+                if (currentPosition != RecyclerView.NO_POSITION) {
+                    listener.onClick(currentPosition);
                 }
             });
         }

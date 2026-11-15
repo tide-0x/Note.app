@@ -115,28 +115,22 @@ public class NoteAdapter extends RecyclerView.Adapter<NoteAdapter.ViewHolder> {
         holder.textView.setText(notes.get(position).getTitle());
         //点击
         if (noteClickListener != null) {
-            holder.itemView.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    int currentPosition = holder.getBindingAdapterPosition();
-                    if (currentPosition != RecyclerView.NO_POSITION) {
-                        noteClickListener.onClick(currentPosition);
-                    }
+            holder.itemView.setOnClickListener(v -> {
+                int currentPosition = holder.getBindingAdapterPosition();
+                if (currentPosition != RecyclerView.NO_POSITION) {
+                    noteClickListener.onClick(currentPosition);
                 }
             });
         }
 
         //长按
-        holder.itemView.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                int currentPosition = holder.getBindingAdapterPosition();
-                if (noteLongClickListener != null && currentPosition != RecyclerView.NO_POSITION) {
-                    noteLongClickListener.onLongClick(currentPosition);
-                    return true;
-                }
-                return false;
+        holder.itemView.setOnLongClickListener(v -> {
+            int currentPosition = holder.getBindingAdapterPosition();
+            if (noteLongClickListener != null && currentPosition != RecyclerView.NO_POSITION) {
+                noteLongClickListener.onLongClick(currentPosition);
+                return true;
             }
+            return false;
         });
     }
 
