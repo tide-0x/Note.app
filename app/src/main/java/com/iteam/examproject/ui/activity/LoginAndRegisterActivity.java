@@ -9,6 +9,9 @@ import com.iteam.examproject.databinding.ActivityLoginAndRegisterBinding;
 import com.iteam.examproject.ui.fragment.LoginAndRegisterFragment;
 
 public class LoginAndRegisterActivity extends AppCompatActivity {
+    /** 从「我的」页切账号进来时带上，登录页据此关掉自动登录 */
+    public static final String EXTRA_SWITCH_ACCOUNT = "extra_switch_account";
+
     private ActivityLoginAndRegisterBinding binding;
 
     @Override

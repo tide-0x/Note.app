@@ -1,10 +1,7 @@
 package com.iteam.examproject.ui.fragment;
 
-import static android.content.Context.MODE_PRIVATE;
-
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 
 import androidx.fragment.app.Fragment;
@@ -18,20 +15,12 @@ import android.widget.Toast;
 
 import com.iteam.examproject.R;
 import com.iteam.examproject.databinding.FragmentMineBinding;
-import com.iteam.examproject.repo.MyRepository;
 import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
-import com.iteam.examproject.utils.ToastUtil;
-import com.iteam.examproject.viewmodel.MyViewModel;
-
-import java.util.Objects;
-
+import com.iteam.examproject.viewmodel.MainViewModel;
 
 public class MineFragment extends Fragment {
     private FragmentMineBinding binding;
-    private MyViewModel viewModel;
-    private MyRepository repo;
-    private SharedPreferences spf;
-    private SharedPreferences.Editor edit;
+    private MainViewModel viewModel;
 
     public MineFragment() {
     }
@@ -42,7 +31,20 @@ public class MineFragment extends Fragment {
         //初始化
         init();
 
-        viewModel.getUserLiveData().observe(getViewLifecycleOwner(), user -> binding.userNameTv.setText(user.getAccount()));
+        viewModel.getUser().observe(getViewLifecycleOwner(), user -> {
+            if (user != null) {
+                binding.userNameTv.setText(user.getAccount());
+            }
+        });
+
+        //VM 里的操作结果（改密码成功、操作失败）统一在这里弹
+        viewModel.getMessages().observe(getViewLifecycleOwner(), event -> {
+            Integer resId = event.getContentIfNotHandled();
+            if (resId != null) {
+                Toast.makeText(requireContext(), getString(resId), Toast.LENGTH_SHORT).show();
+            }
+        });
+        //会话失效（注销成功）由 ContentActivity 统一处理跳转
 
         //更改账号密码
         binding.updateAccountPasswordBtn.setOnClickListener(v -> {
@@ -58,28 +60,17 @@ public class MineFragment extends Fragment {
                             Toast.makeText(requireContext(), getString(R.string.password_empty), Toast.LENGTH_SHORT).show();
                             return;
                         }
-                        long userId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
                         dialog.dismiss();
-                        //改密码同样要算 10000 次摘要，放后台线程
-                        repo.runAsync(() -> repo.updatePassword(userId, changedPassword),
-                                () -> {
-                                    if (isAdded()) {
-                                        Toast.makeText(requireContext(), getString(R.string.password_updated), Toast.LENGTH_SHORT).show();
-                                    }
-                                },
-                                () -> {
-                                    if (isAdded()) {
-                                        ToastUtil.showOperationFailed(requireContext());
-                                    }
-                                });
+                        //改密码同样要算 10000 次摘要，VM 内部走后台线程
+                        viewModel.updatePassword(changedPassword);
                     })
                     .show();
         });
 
-        //切换账号
+        //切换账号：登录页会关掉自动登录，让用户输另一个账号
         binding.exchangeAccountBtn.setOnClickListener(v -> {
-            viewModel.setChangedUserLiveData(true);
             Intent intent = new Intent(requireContext(), LoginAndRegisterActivity.class);
+            intent.putExtra(LoginAndRegisterActivity.EXTRA_SWITCH_ACCOUNT, true);
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
             requireActivity().finish();
@@ -92,62 +83,24 @@ public class MineFragment extends Fragment {
                     .setMessage(R.string.cancel_account_message)
                     .setNegativeButton(getString(R.string.cancel), (dialog, which) -> dialog.dismiss())
                     .setPositiveButton(getString(R.string.confirm), (dialog, which) -> {
-                        long userId = Objects.requireNonNull(viewModel.getUserLiveData().getValue()).getUserId();
                         dialog.dismiss();
-                        repo.runAsync(() -> repo.cancelUser(userId), () -> {
-                            if (!isAdded()) {
-                                return;
-                            }
-                            viewModel.setChangedUserLiveData(false);
-                            updateSPF();
-                            edit.apply();
-                            Intent intent = new Intent(requireContext(), LoginAndRegisterActivity.class);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
-                            requireActivity().finish();
-                        }, () -> {
-                            if (isAdded()) {
-                                //注销失败就别清本地登录态，否则账号还留着却登不回来
-                                ToastUtil.showOperationFailed(requireContext());
-                            }
-                        });
+                        //删库成功后 VM 会清本地登录态并发 sessionExpired，跳转由 ContentActivity 统一处理；
+                        //注销失败就别清本地登录态，否则账号还留着却登不回来
+                        viewModel.cancelAccount();
                     })
                     .show();
         });
 
         //退出账号
-        binding.exitAccountBtn.setOnClickListener(v -> {
-            viewModel.setChangedUserLiveData(false);
-            updateSPF();
-            edit.apply();
-            Intent intent = new Intent(requireContext(), LoginAndRegisterActivity.class);
-            //FLAG_ACTIVITY_NEW_TASK：在新的任务（task）中启动目标 Activity（或复用已有任务）。
-            //FLAG_ACTIVITY_CLEAR_TASK：如果要启动的任务已存在，先清空该任务中的所有 Activity。
-            //两者合用的效果：清空当前任务的返回栈，并把要启动的 Activity 作为新的根 Activity 启动。常用于注销/切换账号场景，防止用户按返回键回到之前的界面。
-            //注意：FLAG_ACTIVITY_CLEAR_TASK 通常需要和 FLAG_ACTIVITY_NEW_TASK 一起使用，否则会被忽略
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-            requireActivity().finish();
-        });
-
+        binding.exitAccountBtn.setOnClickListener(v -> viewModel.logout());
 
         return binding.getRoot();
     }
 
-    private void updateSPF() {
-        edit.putLong("userId", -1);
-        edit.putString("account", "");
-        //退出/注销时把旧版本残留的明文密码一并清掉
-        edit.remove("password");
-    }
-
     private void init() {
         binding = FragmentMineBinding.inflate(getLayoutInflater());
-        viewModel = new ViewModelProvider(this).get(MyViewModel.class);
-        //共享仓储：全进程只有一条数据库连接，用完不需要关闭
-        repo = MyRepository.getInstance(requireContext());
-        spf = requireActivity().getSharedPreferences("currentUser", MODE_PRIVATE);
-        edit = spf.edit();
+        //登录用户、账号操作都在 ContentActivity 级的 MainViewModel 里
+        viewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
     }
 
 }

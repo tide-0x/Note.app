@@ -8,12 +8,15 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
+import androidx.lifecycle.ViewModelProvider;
 
 import com.iteam.examproject.R;
 import com.iteam.examproject.databinding.ActivityContentBinding;
 import com.iteam.examproject.ui.fragment.GroupFragment;
 import com.iteam.examproject.ui.fragment.MineFragment;
 import com.iteam.examproject.ui.fragment.NoteFragment;
+import com.iteam.examproject.viewmodel.Event;
+import com.iteam.examproject.viewmodel.MainViewModel;
 
 /**
  * 底部导航容器。
@@ -22,15 +25,21 @@ import com.iteam.examproject.ui.fragment.NoteFragment;
  * 关键约定：{@link #currentTag} 必须和「屏幕上真正可见的那个」保持一致——
  * 切换、重建两条路径都要显式对齐，不能指望底部导航的回调顺手完成
  * （同 tag 时回调会直接 return，什么都不做）。
+ *
+ * <p>页面级状态（当前用户、当前分组、笔记列表）由 {@link MainViewModel} 持有，
+ * 作用域是本 Activity：登录页把 userId/account 通过 Intent 传进来，退出登录时状态随页面销毁。
  */
 public class ContentActivity extends AppCompatActivity {
     public static final String NOTE_FRAGMENT = "noteFragment";
     public static final String GROUP_FRAGMENT = "groupFragment";
     public static final String MINE_FRAGMENT = "mineFragment";
+    public static final String EXTRA_USER_ID = "extra_user_id";
+    public static final String EXTRA_ACCOUNT = "extra_account";
     private static final String[] ALL_TAGS = {NOTE_FRAGMENT, GROUP_FRAGMENT, MINE_FRAGMENT};
     private static final String KEY_CURRENT_TAG = "key_current_tag";
 
     private ActivityContentBinding binding;
+    private MainViewModel mainViewModel;
     private String currentTag = NOTE_FRAGMENT;
 
     @Override
@@ -38,6 +47,22 @@ public class ContentActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityContentBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+
+        mainViewModel = new ViewModelProvider(this).get(MainViewModel.class);
+        //登录态：登录页通过 Intent 传进来；VM 内部会做本地兜底和失效检查
+        long userId = getIntent().getLongExtra(EXTRA_USER_ID, -1);
+        String account = getIntent().getStringExtra(EXTRA_ACCOUNT);
+        mainViewModel.start(userId, account == null ? "" : account);
+        mainViewModel.getSessionExpired().observe(this, event -> {
+            if (event.getContentIfNotHandled() == null) {
+                return;
+            }
+            Intent intent = new Intent(this, LoginAndRegisterActivity.class);
+            //清空返回栈，防止注销后按返回键回到已失效的页面
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            finish();
+        });
 
         FragmentManager fm = getSupportFragmentManager();
         if (savedInstanceState == null) {

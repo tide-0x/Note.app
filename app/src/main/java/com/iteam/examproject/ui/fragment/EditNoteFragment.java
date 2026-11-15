@@ -1,9 +1,8 @@
 package com.iteam.examproject.ui.fragment;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.activity.OnBackPressedCallback;
@@ -16,7 +15,6 @@ import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.Toast;
 
@@ -24,25 +22,16 @@ import com.iteam.examproject.R;
 import com.iteam.examproject.databinding.BackAlertDialogBinding;
 import com.iteam.examproject.databinding.DeleteAlertDialogBinding;
 import com.iteam.examproject.databinding.FragmentEditNoteBinding;
-import com.iteam.examproject.entity.NoteGroup;
 import com.iteam.examproject.entity.Notes;
-import com.iteam.examproject.repo.MyRepository;
-import com.iteam.examproject.repo.SharedDataRepository;
+import com.iteam.examproject.ui.activity.EditNoteActivity;
 import com.iteam.examproject.utils.ToastUtil;
-import com.iteam.examproject.viewmodel.MyViewModel;
+import com.iteam.examproject.viewmodel.EditNoteViewModel;
+import com.iteam.examproject.viewmodel.EditNoteViewModel.BackDecision;
+import com.iteam.examproject.viewmodel.EditNoteViewModel.SaveDecision;
 
 public class EditNoteFragment extends Fragment {
     private FragmentEditNoteBinding binding;
-    private MyViewModel viewModel;
-    private MyRepository repo;
-    private String title = "";
-    private String content = "";
-    private SharedDataRepository sharedRepo;
-    private String originalTitle = "";
-    private String originalContent = "";
-    private boolean titleIsChanged;
-    private boolean contentIsChanged;
-    private Notes viewModelNotes;
+    private EditNoteViewModel viewModel;
     private AlertDialog activeDialog;
 
     public EditNoteFragment() {
@@ -70,23 +59,41 @@ public class EditNoteFragment extends Fragment {
             return false;
         });
 
-        viewModel.getNotesLiveData().observe(getViewLifecycleOwner(), notes -> {
-            if (notes == null) {
+        //用初始内容铺输入框（旋转屏幕重建时 ViewModel 还在，铺的是同一份）
+        Notes source = viewModel.getSource();
+        if (source.getTitle() != null && !source.getTitle().isEmpty()) {
+            binding.noteTitleEdit.setText(source.getTitle());
+        }
+        if (source.getContent() != null && !source.getContent().isEmpty()) {
+            binding.noteContentEdit.setText(source.getContent());
+        }
+
+        //写库结果统一在这里收尾：回传给列表页、提示、关页面
+        viewModel.getOutcomes().observe(getViewLifecycleOwner(), event -> {
+            EditNoteViewModel.EditOutcome outcome = event.getContentIfNotHandled();
+            if (outcome == null) {
                 return;
             }
-            if (!notes.getTitle().isEmpty()) {
-                binding.noteTitleEdit.setText(notes.getTitle());
+            switch (outcome.kind) {
+                case SAVED_NEW:
+                case SAVED_UPDATED:
+                    if (isAdded()) {
+                        Toast.makeText(requireContext(), getString(R.string.save_success), Toast.LENGTH_SHORT).show();
+                    }
+                    finishWithResult(outcome.kind == EditNoteViewModel.EditOutcome.Kind.SAVED_NEW
+                            ? EditNoteActivity.OUTCOME_INSERTED : EditNoteActivity.OUTCOME_UPDATED, outcome.note);
+                    break;
+                case DELETED:
+                    finishWithResult(EditNoteActivity.OUTCOME_DELETED, outcome.note);
+                    break;
+                case FAILED:
+                default:
+                    if (isAdded()) {
+                        ToastUtil.showOperationFailed(requireContext());
+                    }
+                    break;
             }
-            if (!notes.getContent().isEmpty()) {
-                binding.noteContentEdit.setText(notes.getContent());
-            }
-            //originalTitle是否为空也可以判断是来自新建笔记还是已存在的笔记
-            originalTitle = notes.getTitle();
-            originalContent = notes.getContent();
-
-            viewModelNotes = notes;
         });
-
 
         //返回键（标题栏箭头）
         binding.editNoteToolbar.setNavigationOnClickListener(v -> handleBack());
@@ -106,65 +113,37 @@ public class EditNoteFragment extends Fragment {
             int itemId = item.getItemId();
             if (itemId == R.id.delete) {//删除笔记
                 //删除：要么有，要么无
-                title = binding.noteTitleEdit.getText().toString();
-                content = binding.noteContentEdit.getText().toString();
                 //新建笔记处点开，没有进行保存
-                if (originalTitle.isEmpty() && originalContent.isEmpty()) {
+                if (viewModel.isBrandNew()) {
                     requireActivity().finish();
                 } else {//标题和内容至少有一个不为空
                     deleteNotesAlertDialog();
                 }
 
             } else if (itemId == R.id.save) {
-                //保存笔记：创建或更新后刷新列表，清空临时notes，finish
-                title = binding.noteTitleEdit.getText().toString();
-                content = binding.noteContentEdit.getText().toString();
-                //保存时判断和一开始进入该篇笔记时是否发生变化
-                titleIsChanged = !title.equals(originalTitle);
-                contentIsChanged = !content.equals(originalContent);
-                if (titleIsChanged || contentIsChanged) {//标题和内容至少有一个发生改变
-                    //标题内容都为空->变相删除笔记
-                    if (title.isEmpty() && content.isEmpty()) {
-                        //删库也是 IO，删完再关页面
-                        long notesUserId = viewModelNotes.getUserId();
-                        long notesGroupId = viewModelNotes.getGroupId();
-                        long notesId = viewModelNotes.getNotesId();
-                        repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), () -> {
-                            if (!isAdded()) {
-                                return;
-                            }
-                            //列表里摘掉这一条即可，不必整表重查
-                            if (!sharedRepo.applyNoteDeleted(viewModelNotes)) {
-                                reloadCurrentNotesList();
-                            }
-                            sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
-                            requireActivity().finish();
-                        }, () -> {
-                            if (isAdded()) {
-                                ToastUtil.showOperationFailed(requireContext());
-                            }
-                        });
-                        return true;
-                    } else if (!content.isEmpty() && title.isEmpty()) {
+                //保存笔记：怎么处理由 VM 的状态说了算
+                String title = binding.noteTitleEdit.getText().toString();
+                String content = binding.noteContentEdit.getText().toString();
+                SaveDecision decision = viewModel.decideSave(title, content);
+                switch (decision) {
+                    case DELETE_INTENT:
+                        //标题内容都为空->变相删除笔记
+                        viewModel.delete();
+                        break;
+                    case TITLE_EMPTY:
                         //有内容但没标题
                         Toast.makeText(requireContext(), getString(R.string.title_empty), Toast.LENGTH_SHORT).show();
-                        return true;
-                    } else {//一般情况
-                        //后续用户又点击保存后判断是否有变化
-                        originalTitle = title;
-                        originalContent = content;
-                        SaveNotesData(() -> {
-                            if (isAdded()) {
-                                Toast.makeText(requireContext(), getString(R.string.save_success), Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                    }
-                } else {//什么都没有改变
-                    if (title.isEmpty() && content.isEmpty()) {//没有编辑（新建笔记处来，什么都没有就点了保存）
+                        break;
+                    case PROCEED:
+                        viewModel.save(title, content);
+                        break;
+                    case NOTHING_CHANGED_EMPTY:
                         Toast.makeText(requireContext(), getString(R.string.nothing_to_save), Toast.LENGTH_SHORT).show();
-                    } else {//已保存过又点击了保存
+                        break;
+                    case NOTHING_CHANGED:
+                    default:
                         Toast.makeText(requireContext(), getString(R.string.content_saved), Toast.LENGTH_SHORT).show();
-                    }
+                        break;
                 }
             }
             return true;
@@ -173,110 +152,35 @@ public class EditNoteFragment extends Fragment {
         return binding.getRoot();
     }
 
-    /**
-     * 返回前的统一处理：有未保存的修改就弹对话框确认，没有就直接退出。
-     */
-    private void handleBack() {
-        title = binding.noteTitleEdit.getText().toString();
-        content = binding.noteContentEdit.getText().toString();
-
-        //标题内容是否更改
-        titleIsChanged = !title.equals(originalTitle);
-        contentIsChanged = !content.equals(originalContent);
-
-        if (titleIsChanged || contentIsChanged) {//标题内容至少有一个发生了改变
-            if (title.isEmpty() && !content.isEmpty()) {//有内容但标题为空
-                Toast.makeText(requireContext(), getString(R.string.title_empty), Toast.LENGTH_SHORT).show();
-            } else {
-                //1.都为空
-                //2.都不为空
-                //3.有标题没内容
-                backAlertDialog();
-                //弹出对话框处理保存/取消，注意这里直接返回，不在此处 finish
-            }
-            return;
-        }
-        //有编辑但保存好了/没有发生变化
-        //清空临时notes防止下次新建保留
-        sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
+    /** 把结果回传给启动编辑页的列表页，然后关页面 */
+    private void finishWithResult(String outcome, Notes note) {
+        Intent result = EditNoteActivity.buildResult(outcome, note);
+        requireActivity().setResult(android.app.Activity.RESULT_OK, result);
         requireActivity().finish();
     }
 
     /**
-     * 保存当前笔记：新建走 createNote，已存在的走 updateNotes，然后在内存列表上改这一条。
-     * 写库在 IO 线程，onSaved 在主线程回调；需要界面跳转或提示的，都放进 onSaved。
+     * 返回前的统一处理：怎么处理由 VM 的状态说了算，View 照着做。
      */
-    private void SaveNotesData(Runnable onSaved) {
-        long editedTime = System.currentTimeMillis();
-        //notesLiveData 里存的正是列表点击时传进来的那个对象，NoteAdapter 的列表同样持有它。
-        //这里必须复制一份再改：直接在原对象上 set 会「悄悄改掉适配器的数据」，
-        //保存后 DiffUtil 对比新旧列表看到内容相同，就不会重绑那一行，
-        //结果数据库和内存都是新标题，界面上却一直显示旧标题。
-        Notes source = sharedRepo.getNotesLiveData().getValue();
-        if (source == null) {
-            if (onSaved != null) {
-                onSaved.run();
-            }
-            return;
-        }
-        final Notes notes = new Notes(source.getUserId(), source.getGroupId(), source.getNotesId(),
-                title, content, editedTime);
-        final boolean isNew = notes.getNotesId() == -1;
-        final long userId = notes.getUserId();
-        final long groupId = notes.getGroupId();
-        final String noteTitle = notes.getTitle();
-        final String noteContent = notes.getContent();
-        repo.runAsync(() -> {
-            if (isNew) {//从创建笔记的按钮来到这个fragment
-                //新建只需要回传插入出来的行号，别的笔记都没动，不用把列表查回来
-                return repo.createNote(userId, groupId, noteTitle, noteContent, editedTime);
-            }
-            //从某个分组中来到这个fragment
-            repo.updateNotes(notes);
-            return -1L;
-        }, result -> {
-            if (!isAdded()) {
-                return;
-            }
-            if (!result.isSuccess()) {
-                //写库失败就停在本页，别让用户以为已经保存
-                ToastUtil.showOperationFailed(requireContext());
-                return;
-            }
-            Long savedNotesId = result.getData();
-            if (savedNotesId != null && savedNotesId > 0) {
-                //新建成功：行号记在这份副本上，本页再点保存就走更新，不会重复建一条
-                notes.setNotesId(savedNotesId);
-                sharedRepo.applyNoteInserted(notes);
-            } else if (!sharedRepo.applyNoteUpdated(notes)) {
-                //列表里认不出这一条（早期数据没有 notesId），只能重新查一遍兜底
-                reloadCurrentNotesList();
-            }
-            //用这份独立副本替换 notesLiveData 的引用，之后的保存/返回对话框读到的都不再是列表里的对象
-            sharedRepo.setNotes(notes);
-            if (onSaved != null) {
-                onSaved.run();
-            }
-        });
-    }
+    private void handleBack() {
+        String title = binding.noteTitleEdit.getText().toString();
+        String content = binding.noteContentEdit.getText().toString();
 
-    /**
-     * 兜底刷新：增量修改认不出那一条笔记时才走这里，把<b>当前显示的分组</b>重新查一遍。
-     * 正常路径不会进来——写库成功、内存列表也改好就够了。
-     * 查的是当前分组而不是笔记自己的 groupId：从搜索结果点进来的笔记 groupId 是 0，
-     * 但屏幕上显示的还是原来那个分组。
-     */
-    private void reloadCurrentNotesList() {
-        NoteGroup current = sharedRepo.getNoteGroupLiveData().getValue();
-        if (current == null) {
-            return;
+        BackDecision decision = viewModel.decideBack(title, content);
+        switch (decision) {
+            case STAY_TITLE_EMPTY:
+                //有内容但标题为空
+                Toast.makeText(requireContext(), getString(R.string.title_empty), Toast.LENGTH_SHORT).show();
+                break;
+            case ASK_SAVE:
+                //弹出对话框处理保存/取消，注意这里直接返回，不在此处 finish
+                backAlertDialog();
+                break;
+            case EXIT:
+            default:
+                requireActivity().finish();
+                break;
         }
-        repo.runAsync(() -> repo.getNotesList(current.getUserId(), current.getGroupId()), result -> {
-            if (!isAdded() || !result.isSuccess() || result.getData() == null) {
-                return;
-            }
-            sharedRepo.setNotesList(result.getData());
-        });
     }
 
     private void backAlertDialog() {
@@ -292,43 +196,20 @@ public class EditNoteFragment extends Fragment {
         });
         //保存-->返回，数据发生更改
         backAlertDialogBinding.backAlertDialogSave.setOnClickListener(v -> {
-            //1.都为空
-            if (title.isEmpty() && content.isEmpty()) {//返回选择保存时标题内容都为空
-                //等效删除：删掉数据库里的记录
-                Notes notes = sharedRepo.getNotesLiveData().getValue();
-                if (notes != null) {
-                    long notesUserId = notes.getUserId();
-                    long notesGroupId = notes.getGroupId();
-                    long notesId = notes.getNotesId();
-                    alertDialog.dismiss();
-                    activeDialog = null;
-                    repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), () -> {
-                        if (!isAdded()) {
-                            return;
-                        }
-                        if (!sharedRepo.applyNoteDeleted(notes)) {
-                            reloadCurrentNotesList();
-                        }
-                        sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
-                        requireActivity().finish();
-                    }, () -> {
-                        if (isAdded()) {
-                            ToastUtil.showOperationFailed(requireContext());
-                        }
-                    });
-                    return;
-                }
-            }
-            //2.都不为空
-            //3.有标题没内容
+            String title = binding.noteTitleEdit.getText().toString();
+            String content = binding.noteContentEdit.getText().toString();
             alertDialog.dismiss();
             activeDialog = null;
-            //保存完再退出，避免页面先关、写入还没落盘
-            SaveNotesData(() -> {
-                if (isAdded()) {
-                    requireActivity().finish();
-                }
-            });
+            //1.都为空：返回选择保存时标题内容都为空，等效删除
+            //2.都不为空
+            //3.有标题没内容
+            SaveDecision decision = viewModel.decideSave(title, content);
+            if (decision == SaveDecision.DELETE_INTENT) {
+                viewModel.delete();
+            } else {
+                //保存完再退出，避免页面先关、写入还没落盘（关页面在 outcome 回调里做）
+                viewModel.save(title, content);
+            }
         });
         alertDialog.show();
     }
@@ -347,33 +228,9 @@ public class EditNoteFragment extends Fragment {
         });
         //确定删除
         deleteAlertDialog.customizeAlertDialogConfirm.setOnClickListener(v -> {
-            //删除在数据库中的记录
-            //创建处删除
-            //某个分组中的笔记删除
-            Notes notes = sharedRepo.getNotesLiveData().getValue();
             alertDialog.dismiss();
             activeDialog = null;
-            if (notes == null) {
-                requireActivity().finish();
-                return;
-            }
-            long notesUserId = notes.getUserId();
-            long notesGroupId = notes.getGroupId();
-            long notesId = notes.getNotesId();
-            repo.runAsync(() -> repo.deleteNotes(notesUserId, notesGroupId, notesId), () -> {
-                if (!isAdded()) {
-                    return;
-                }
-                if (!sharedRepo.applyNoteDeleted(notes)) {
-                    reloadCurrentNotesList();
-                }
-                sharedRepo.setNotes(new Notes(-1, -1, -1, "", "", -1));
-                requireActivity().finish();
-            }, () -> {
-                if (isAdded()) {
-                    ToastUtil.showOperationFailed(requireContext());
-                }
-            });
+            viewModel.delete();
         });
         alertDialog.show();
     }
@@ -381,10 +238,10 @@ public class EditNoteFragment extends Fragment {
 
     private void init() {
         binding = FragmentEditNoteBinding.inflate(getLayoutInflater());
-        sharedRepo = SharedDataRepository.getInstance();
-        viewModel = new ViewModelProvider(this).get(MyViewModel.class);
-        //共享仓储：全进程只有一条数据库连接，用完不需要关闭
-        repo = MyRepository.getInstance(requireContext());
+        //状态在 EditNoteActivity 级的 ViewModel 里，旋转屏幕不丢
+        viewModel = new ViewModelProvider(requireActivity()).get(EditNoteViewModel.class);
+        //要编辑哪篇笔记由启动方的 Intent 传入
+        viewModel.start(EditNoteActivity.readNote(requireActivity().getIntent()));
     }
 
 
@@ -396,8 +253,6 @@ public class EditNoteFragment extends Fragment {
             activeDialog.dismiss();
             activeDialog = null;
         }
-        //连接由 MyRepository 单例统一持有，这里不关闭、也不置空：
-        //同一条连接可能正被别的页面使用，而且后台线程可能还在用它
         binding = null;
     }
 }

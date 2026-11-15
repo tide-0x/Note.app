@@ -1,15 +1,11 @@
 package com.iteam.examproject.ui.fragment;
 
-import static android.content.Context.MODE_PRIVATE;
-
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,24 +13,17 @@ import android.widget.Toast;
 
 import com.iteam.examproject.R;
 import com.iteam.examproject.databinding.FragmentLoginAndRegisterBinding;
-
-import com.iteam.examproject.entity.NoteGroup;
 import com.iteam.examproject.entity.User;
 import com.iteam.examproject.ui.activity.ContentActivity;
-import com.iteam.examproject.utils.ToastUtil;
-import com.iteam.examproject.viewmodel.MyViewModel;
-import com.iteam.examproject.repo.MyRepository;
 import com.iteam.examproject.ui.activity.LoginAndRegisterActivity;
+import com.iteam.examproject.utils.ToastUtil;
+import com.iteam.examproject.viewmodel.AuthViewModel;
+import com.iteam.examproject.viewmodel.AuthViewModel.AuthOutcome;
 
 public class LoginAndRegisterFragment extends Fragment {
     private static final String TAG = "LoginAndRegisterFragment";
     private FragmentLoginAndRegisterBinding binding;
-    private MyViewModel viewModel;
-    private String account;
-    private String password;
-    private MyRepository repo;
-    private SharedPreferences spf;
-    private SharedPreferences.Editor edit;
+    private AuthViewModel viewModel;
 
     public LoginAndRegisterFragment() {
     }
@@ -45,119 +34,92 @@ public class LoginAndRegisterFragment extends Fragment {
         //初始化
         init();
 
-        //从第二次打开都是上一次的账户，但如果是切换账户则不行，用SharedPreferences
-        long userId = spf.getLong("userId", -1);
-        boolean changedUser= Boolean.TRUE.equals(viewModel.getChangedUserLiveData().getValue());
-        if(changedUser){
+        //切换账号场景下关掉自动登录，按钮文字换成「切换账号」
+        boolean switchMode = requireActivity().getIntent()
+                .getBooleanExtra(LoginAndRegisterActivity.EXTRA_SWITCH_ACCOUNT, false);
+        viewModel.setSwitchMode(switchMode);
+        if (switchMode) {
             binding.loginBtn.setText(R.string.exchange_account);
         }
-        if (userId != -1 && !changedUser) {//本地有数据且没有切换账号
-            String account = spf.getString("account", "");
-            //记住登录态只需要 userId 和 account，密码不再落盘
-            viewModel.setUserLiveData(new User(userId, account));
-            viewModel.setNoteGroupLiveData(new NoteGroup(userId,0,getString(R.string.all_notes)));
-            viewModel.setChangedUserLiveData(false);
-            toNoteFragment();
-        }
 
-        //登录
-        //通过数据库获取该user的userId
-        binding.loginBtn.setOnClickListener(v -> {
-            account = binding.accountEdit.getText().toString().trim();
-            password = binding.passwordEdit.getText().toString().trim();
-            if (account.isEmpty() || password.isEmpty()) {
-                Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
+        //登录/注册/自动登录的结果统一在这里收尾
+        viewModel.getOutcomes().observe(getViewLifecycleOwner(), event -> {
+            AuthOutcome outcome = event.getContentIfNotHandled();
+            if (outcome == null) {
                 return;
             }
-            final String acc = account;
-            final String pwd = password;
-            //校验密码要做 10000 次 SHA-256，放主线程会明显卡顿，交给 IO 线程
-            repo.runAsync(() -> repo.login(acc, pwd), result -> {
-                if (!isAdded()) {
-                    return;
-                }
-                if (!result.isSuccess()) {
-                    ToastUtil.showOperationFailed(requireContext());
-                    return;
-                }
-                //成功但没查到人 = 账号或密码错误（业务上的空结果，不是出错）
-                User user = result.getData();
-                if (user == null) {
+            switch (outcome.kind) {
+                case AUTO_LOGIN:
+                    //本地记住过登录态，直接进主界面
+                    navigateToContent(outcome.user);
+                    break;
+                case LOGGED_IN:
+                    Toast.makeText(requireContext(), getString(R.string.login_success), Toast.LENGTH_SHORT).show();
+                    navigateToContent(outcome.user);
+                    break;
+                case REGISTERED:
+                    Toast.makeText(requireContext(), getString(R.string.register_success), Toast.LENGTH_SHORT).show();
+                    navigateToContent(outcome.user);
+                    break;
+                case WRONG_PASSWORD:
+                    //成功但没查到人 = 账号或密码错误（业务上的空结果，不是出错）
                     Toast.makeText(requireContext(), getString(R.string.account_or_password_error), Toast.LENGTH_SHORT).show();
-                } else {
-                    User liveDataUser = viewModel.getUserLiveData().getValue();
-                    if (liveDataUser != null &&
-                            changedUser &&
-                            liveDataUser.getUserId() == user.getUserId()) {//判断是否切换账号 true
-                        Toast.makeText(requireContext(), getString(R.string.account_is_current), Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(requireContext(), getString(R.string.login_success), Toast.LENGTH_SHORT).show();
-                        saveData(user);
-                        toNoteFragment();
-                    }
-                }
-            });
+                    break;
+                case ALREADY_CURRENT:
+                    Toast.makeText(requireContext(), getString(R.string.account_is_current), Toast.LENGTH_SHORT).show();
+                    break;
+                case ACCOUNT_EXISTS:
+                    Toast.makeText(requireContext(), getString(R.string.account_exists), Toast.LENGTH_SHORT).show();
+                    break;
+                case FAILED:
+                default:
+                    ToastUtil.showOperationFailed(requireContext());
+                    break;
+            }
         });
 
-        //注册
-        //先存进数据库再将user信息给viewmodel
-        binding.registerBtn.setOnClickListener(v -> {
-            account = binding.accountEdit.getText().toString().trim();
-            password = binding.passwordEdit.getText().toString().trim();
+        //本地有数据且不是切换账号场景，直接进主界面（密码不再落盘，记住的只有 userId 和 account）
+        viewModel.autoLogin();
+
+        //登录
+        binding.loginBtn.setOnClickListener(v -> {
+            String account = binding.accountEdit.getText().toString().trim();
+            String password = binding.passwordEdit.getText().toString().trim();
             if (account.isEmpty() || password.isEmpty()) {
                 Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
                 return;
             }
-            final String acc = account;
-            final String pwd = password;
-            //注册同样要算摘要，交给 IO 线程
-            repo.runAsync(() -> repo.register(acc, pwd), result -> {
-                if (!isAdded()) {
-                    return;
-                }
-                if (!result.isSuccess()) {
-                    ToastUtil.showOperationFailed(requireContext());
-                    return;
-                }
-                User user = result.getData();
-                if (user == null) {
-                    //账号已存在
-                    Toast.makeText(requireContext(), getString(R.string.account_exists), Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(requireContext(), getString(R.string.register_success), Toast.LENGTH_SHORT).show();
-                    saveData(user);
-                    toNoteFragment();
-                }
-            });
+            //校验密码要做 10000 次 SHA-256，VM 内部走 IO 线程
+            viewModel.login(account, password);
+        });
+
+        //注册：先存进数据库，成功即登录
+        binding.registerBtn.setOnClickListener(v -> {
+            String account = binding.accountEdit.getText().toString().trim();
+            String password = binding.passwordEdit.getText().toString().trim();
+            if (account.isEmpty() || password.isEmpty()) {
+                Toast.makeText(requireContext(), getString(R.string.account_or_password_empty), Toast.LENGTH_SHORT).show();
+                return;
+            }
+            //注册同样要算摘要，VM 内部走 IO 线程
+            viewModel.register(account, password);
         });
 
 
         return binding.getRoot();
     }
 
-    private void saveData(User user) {
-        viewModel.setUserLiveData(user);
-        viewModel.setNoteGroupLiveData(new NoteGroup(user.getUserId(),0,getString(R.string.all_notes)));
-        edit.putLong("userId", user.getUserId());
-        edit.putString("account", user.getAccount());
-        //清掉旧版本曾经写进 SharedPreferences 的明文密码
-        edit.remove("password");
-        viewModel.setChangedUserLiveData(false);
-        edit.apply();
+    /** 登录成功：userId/account 通过 Intent 传给 ContentActivity，不再依赖全局单例 */
+    private void navigateToContent(User user) {
+        Intent intent = new Intent(requireActivity(), ContentActivity.class);
+        intent.putExtra(ContentActivity.EXTRA_USER_ID, user.getUserId());
+        intent.putExtra(ContentActivity.EXTRA_ACCOUNT, user.getAccount());
+        startActivity(intent);
+        requireActivity().finish();
     }
 
     private void init() {
         binding = FragmentLoginAndRegisterBinding.inflate(getLayoutInflater());
-        viewModel = new ViewModelProvider(this).get(MyViewModel.class);
-        //共享仓储：全进程只有一条数据库连接，用完不需要关闭
-        repo = MyRepository.getInstance(requireContext());
-        spf = requireActivity().getSharedPreferences("currentUser", MODE_PRIVATE);
-        edit = spf.edit();
-    }
-
-    private void toNoteFragment() {
-        Intent intent = new Intent(requireActivity(), ContentActivity.class);
-        startActivity(intent);
-        requireActivity().finish();
+        viewModel = new ViewModelProvider(this).get(AuthViewModel.class);
     }
 }

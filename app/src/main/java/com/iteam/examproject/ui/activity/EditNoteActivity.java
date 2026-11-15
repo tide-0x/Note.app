@@ -1,8 +1,8 @@
 package com.iteam.examproject.ui.activity;
 
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
@@ -10,11 +10,49 @@ import androidx.fragment.app.FragmentManager;
 
 import com.iteam.examproject.R;
 import com.iteam.examproject.databinding.ActivityEditNoteBinding;
+import com.iteam.examproject.entity.Notes;
 import com.iteam.examproject.ui.fragment.EditNoteFragment;
 
+/**
+ * 编辑笔记页容器。
+ *
+ * <p>要编辑哪篇笔记由 Intent 传入（原来是靠进程级单例「先写后读」，现在显式传参）；
+ * 保存/删除的结果通过 Activity Result 回传给启动它的列表页。
+ */
 public class EditNoteActivity extends AppCompatActivity {
     public static final String EDITED_FRAGMENT = "editedFragment";
+
+    public static final String EXTRA_NOTE = "extra_note";
+    public static final String EXTRA_OUTCOME = "extra_outcome";
+    public static final String OUTCOME_INSERTED = "inserted";
+    public static final String OUTCOME_UPDATED = "updated";
+    public static final String OUTCOME_DELETED = "deleted";
+
     private ActivityEditNoteBinding binding;
+
+    /** 列表页启动编辑页的统一入口 */
+    public static Intent createIntent(Context context, Notes note) {
+        Intent intent = new Intent(context, EditNoteActivity.class);
+        intent.putExtra(EXTRA_NOTE, note);
+        return intent;
+    }
+
+    /** 编辑页保存/删除成功后给列表页的回传结果 */
+    public static Intent buildResult(String outcome, Notes note) {
+        Intent intent = new Intent();
+        intent.putExtra(EXTRA_OUTCOME, outcome);
+        intent.putExtra(EXTRA_NOTE, note);
+        return intent;
+    }
+
+    @SuppressWarnings("deprecation")
+    public static Notes readNote(Intent intent) {
+        return intent == null ? null : (Notes) intent.getSerializableExtra(EXTRA_NOTE);
+    }
+
+    public static String readOutcome(Intent intent) {
+        return intent == null ? null : intent.getStringExtra(EXTRA_OUTCOME);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
